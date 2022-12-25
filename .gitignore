@@ -1,0 +1,25 @@
+*.log
+*.*~
+
+# Mac OS X files and IDE directories.
+.DS_Store
+.idea
+.vscode
+
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, build with `go test -c`
+*.test
+
+*.out
+go/bin
+.vagrant*
+keys/local
+configs/.env
+.env
+jenkins/results
