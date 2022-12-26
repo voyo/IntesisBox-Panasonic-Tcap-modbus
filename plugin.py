@@ -225,14 +225,14 @@ class BasePlugin:
                  Dev(2,"outlet_water_temp",0,2,functioncode=3,TypeName="Temperature",Description="Outlet temperature"),
                  Dev(3,"inlet_temp",0,3,functioncode=3,TypeName="Temperature",Description="Inlet temperature"),
                  Dev(4,"tank_water_temp",0,32,functioncode=3,TypeName="Temperature",Description="Tank water temperature"),
-                 Dev(5,"tank_water_setpoint_temp",0,33,functioncode=3,TypeName="Temperature",Description="Tank water setpoint temperature")
-                 Dev(6,"Tank energy consumption",0,45,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption")
-                 Dev(7,"Heat energy consumption",0,46,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption")
-                 Dev(8,"Cool energy consumption",0,47,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption")
-                 Dev(9,"Tank Energy Generation",0,187,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption")
-                 Dev(10,"Heat Energy Generation",0,188,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption")
-                 Dev(11,"Cool Energy Generation",0,189,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption")
-                 Dev(12,"Current error status",0,70,functioncode=3,TypeName="Alert",Description="Current error status")     
+                 Dev(5,"tank_water_setpoint_temp",0,33,functioncode=3,TypeName="Temperature",Description="Tank water setpoint temperature"),
+                 Dev(6,"Tank energy consumption",0,45,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption"),
+                 Dev(7,"Heat energy consumption",0,46,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption"),
+                 Dev(8,"Cool energy consumption",0,47,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption"),
+                 Dev(9,"Tank Energy Generation",0,187,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption"),
+                 Dev(10,"Heat Energy Generation",0,188,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption"),
+                 Dev(11,"Cool Energy Generation",0,189,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption"),
+                 Dev(12,"Current error status",0,70,functioncode=3,TypeName="Alert",Description="Current error status")
             ]
 #   def __init__(self,    ID,name,register,functioncode: int = 3,options=None, Used: int = 1):
         self.settings = [
