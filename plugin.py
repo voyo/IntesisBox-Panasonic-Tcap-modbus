@@ -226,9 +226,9 @@ class BasePlugin:
                  Dev(3,"inlet_temp",0,3,functioncode=3,TypeName="Temperature",Description="Inlet temperature"),
                  Dev(4,"tank_water_temp",0,32,functioncode=3,TypeName="Temperature",Description="Tank water temperature"),
                  Dev(5,"tank_water_setpoint_temp",0,33,functioncode=3,TypeName="Temperature",Description="Tank water setpoint temperature")
-                 Dev(6,"Tank energy consumption",0,45,functioncode=3,TypeName=" ",Description="Tank mode energy consumption")
-                 Dev(7,"Heat energy consumption",0,46,functioncode=3,TypeName="Temperature",Description="Heat mode energy consumption")
-                 Dev(8,"Cool energy consumption",0,47,functioncode=3,TypeName="Temperature",Description="Cool mode energy consumption")
+                 Dev(6,"Tank energy consumption",0,45,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption")
+                 Dev(7,"Heat energy consumption",0,46,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption")
+                 Dev(8,"Cool energy consumption",0,47,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption")
                  Dev(9,"Tank Energy Generation",0,187,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption")
                  Dev(10,"Heat Energy Generation",0,188,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption")
                  Dev(11,"Cool Energy Generation",0,189,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption")
