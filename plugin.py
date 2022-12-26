@@ -35,6 +35,7 @@ import Domoticz
 
 
 
+
 class Switch:
    def __init__(self,ID,name,register,functioncode: int = 3,options=None, Used: int = 1):
         self.ID = ID
@@ -225,14 +226,31 @@ class BasePlugin:
                  Dev(3,"inlet_temp",0,3,functioncode=3,TypeName="Temperature",Description="Inlet temperature"),
                  Dev(4,"tank_water_temp",0,32,functioncode=3,TypeName="Temperature",Description="Tank water temperature"),
                  Dev(5,"tank_water_setpoint_temp",0,33,functioncode=3,TypeName="Temperature",Description="Tank water setpoint temperature")
+                 Dev(6,"Tank energy consumption",0,45,functioncode=3,TypeName=" ",Description="Tank mode energy consumption")
+                 Dev(7,"Heat energy consumption",0,46,functioncode=3,TypeName="Temperature",Description="Heat mode energy consumption")
+                 Dev(8,"Cool energy consumption",0,47,functioncode=3,TypeName="Temperature",Description="Cool mode energy consumption")
+                 Dev(9,"Tank Energy Generation",0,187,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption")
+                 Dev(10,"Heat Energy Generation",0,188,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption")
+                 Dev(11,"Cool Energy Generation",0,189,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption")
+                 Dev(12,"Current error status",0,70,functioncode=3,TypeName="Alert",Description="Current error status")     
             ]
 #   def __init__(self,    ID,name,register,functioncode: int = 3,options=None, Used: int = 1):
         self.settings = [
                  Switch(51,"System On/Off",0,functioncode=3),
                  Switch(52,"OperatingMode",4,functioncode=3,options={"LevelActions": "|act1| |act2|","LevelNames": "|" + "Heat" + "|" + "Heat Tank" + "|" + "Tank"+ "|" + "Cool Tank"+ "|" + "Cool"+ "|" + "Auto"+ "|" + "Auto Tank"+ "|" + "Auto Heat"+ "|" + "Auto Heat Tank"+ "|" + "Auto Cool"+ "|" + "Auto Cool Tank", "LevelOffHidden": "true", "SelectorStyle": "1"}),
                  Switch(53,"Tank heater",34,functioncode=3)
+                 Switch(54,"Tank set temp",33,functioncode=3)
                   ]
 
+     #   Domoticz.Device(Name=self.name, Unit=self.ID,Type=self.Type, Subtype=self.SubType, Switchtype=self.SwitchType, Used=self.Used,Options=self.options,Description=self.Description).Create()
+
+# create exceptional device
+        Domoticz.Device(Name="Tank Setpoint",
+                            Unit=55,
+                            Image=15,
+                            Type=242,
+                            Subtype=1,
+                            Used=1).Create()
 
     def onStop(self):
         Domoticz.Log("Panasonic-IntesisBox Modbus plugin stop")
@@ -266,9 +284,14 @@ class BasePlugin:
                             Domoticz.Log("in HeartBeat "+i.name+": "+format(i.value))
             self.runInterval = int(Parameters["Mode3"]) 
 
+            # update exceptional device             
+            Devices[55].Update(0,str(data)+';0',True) 
+
+
 
 
     def onCommand(self, u, Command, Level, Hue):
+        Domoticz.Log("onCommand called for Unit " + str(u) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
         if Parameters["Mode6"] == 'Debug':
                 Domoticz.Log(str(Devices[u].Name) + ": onCommand called: Parameter '" + str(Command) + "', Level: " + str(Level))
         dev_len=len(self.sensors)
@@ -320,3 +343,4 @@ def DumpConfigToLog():
         Domoticz.Log("Device sValue:   '" + Devices[x].sValue + "'")
         Domoticz.Log("Device LastLevel: " + str(Devices[x].LastLevel))
     return
+
