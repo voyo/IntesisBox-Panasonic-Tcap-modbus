@@ -229,11 +229,11 @@ class BasePlugin:
                  Dev(6,"Tank energy consumption",0,45,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption"),
                  Dev(7,"Heat energy consumption",0,46,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption"),
                  Dev(8,"Cool energy consumption",0,47,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption"),
-                 Dev(9,"Tank Energy Generation",0,187,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption"),
-                 Dev(10,"Heat Energy Generation",0,188,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption"),
-                 Dev(11,"Cool Energy Generation",0,189,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption"),
+                 Dev(9,"Tank Energy Generation",0,187,functioncode=3,TypeName="kWh",Description="Tank mode energy generation"),
+                 Dev(10,"Heat Energy Generation",0,188,functioncode=3,TypeName="kWh",Description="Heat mode energy generation"),
+                 Dev(11,"Cool Energy Generation",0,189,functioncode=3,TypeName="kWh",Description="Cool mode energy generation"),
                  Dev(12,"Current error status",0,70,functioncode=3,TypeName="Alert",Description="Current error status")
-            ]
+            ]w
 #   def __init__(self,    ID,name,register,functioncode: int = 3,options=None, Used: int = 1):
         self.settings = [
                  Switch(51,"System On/Off",0,functioncode=3),
