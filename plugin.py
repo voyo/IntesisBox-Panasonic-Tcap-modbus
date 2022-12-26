@@ -288,7 +288,7 @@ class BasePlugin:
             # Tank water setpoint temperature
             payload = self.RS485.read_register(33,0,3)
             Domoticz.Log("Getting data from modbus for device: Tank water setpoint temperature ID: 55 ,value: " + str(payload))
-            Devices[55].Update(0,str(data)+';0',True) 
+            Devices[55].Update(0,str(payload)+';0',True) 
 
 
 
