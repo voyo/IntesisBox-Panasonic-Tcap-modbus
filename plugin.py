@@ -238,7 +238,7 @@ class BasePlugin:
         self.settings = [
                  Switch(51,"System On/Off",0,functioncode=3),
                  Switch(52,"OperatingMode",4,functioncode=3,options={"LevelActions": "|act1| |act2|","LevelNames": "|" + "Heat" + "|" + "Heat Tank" + "|" + "Tank"+ "|" + "Cool Tank"+ "|" + "Cool"+ "|" + "Auto"+ "|" + "Auto Tank"+ "|" + "Auto Heat"+ "|" + "Auto Heat Tank"+ "|" + "Auto Cool"+ "|" + "Auto Cool Tank", "LevelOffHidden": "true", "SelectorStyle": "1"}),
-                 Switch(53,"Tank heater",34,functioncode=3)
+                 Switch(53,"Tank heater",34,functioncode=3),
                  Switch(54,"Tank set temp",33,functioncode=3)
                   ]
 
