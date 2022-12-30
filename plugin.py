@@ -15,7 +15,7 @@ Requirements:
         <param field="SerialPort" label="Modbus Port" width="200px" required="true" default="/dev/ttyUSB0" />
         <param field="Mode1" label="Baud rate" width="40px" required="true" default="9600"  />
         <param field="Mode2" label="Device ID" width="40px" required="true" default="1" />
-        <param field="Mode3" label="Reading Interval min." width="40px" required="true" default="1" />
+        <param field="Mode3" label="Reading Interval * 10s." width="40px" required="true" default="1" />
         <param field="Mode6" label="Debug" width="75px">
             <options>
                 <option label="True" value="Debug"/>
@@ -194,7 +194,7 @@ class Dev:
                      payload = RS485.read_register(self.register,number_of_decimals=self.nod,functioncode=self.functioncode,signed=self.signed)
                  Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(payload)+" signed: "+str(self.signed))
                  data = payload
-                 Devices[self.ID].Update(0,str(data)+';0',True) # force update, even if the voltage has no changed. 
+                 Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed. 
                  if Parameters["Mode6"] == 'Debug':
                      Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )                 
                     
@@ -233,7 +233,7 @@ class BasePlugin:
                  Dev(10,"Heat Energy Generation",0,188,functioncode=3,TypeName="kWh",Description="Heat mode energy generation"),
                  Dev(11,"Cool Energy Generation",0,189,functioncode=3,TypeName="kWh",Description="Cool mode energy generation"),
                  Dev(12,"Current error status",0,70,functioncode=3,TypeName="Alert",Description="Current error status")
-            ]w
+            ]
 #   def __init__(self,    ID,name,register,functioncode: int = 3,options=None, Used: int = 1):
         self.settings = [
                  Switch(51,"System On/Off",0,functioncode=3),
