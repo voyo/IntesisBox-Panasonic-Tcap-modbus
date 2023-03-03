@@ -273,7 +273,7 @@ class BasePlugin:
                  Dev(10,"Heat Energy Generation",0,188,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption"),
                  Dev(11,"Cool Energy Generation",0,189,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption"),
                  Dev(12,"Current error status",0,70,functioncode=3,TypeName="Alert",Description="Current error status"),
-                 Dev(13,"Valve direction",0,85,functioncode=3,Type=244, Subtype=62, Switchtype=18,Description="Valve direction",options={"LevelActions": "|room| |tank|","LevelNames": "|" + "Room" + "|" + "Tank", "LevelOffHidden": "true", "SelectorStyle": "0"})
+                 Dev(13,"Valve direction",0,85,functioncode=3,Type=244,Description="Valve direction",options={"LevelActions": "|room| |tank|","LevelNames": "|" + "Room" + "|" + "Tank", "LevelOffHidden": "true", "SelectorStyle": "0"})
             ]
 #   def __init__(self,    ID,name,register,functioncode: int = 3,options=None, Used: int = 1):
         self.settings = [
