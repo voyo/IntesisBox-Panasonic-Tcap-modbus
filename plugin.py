@@ -12,10 +12,19 @@ Requirements:
 """
 <plugin key="Panasonic-IntesisBox" name="Panasonic-IntesisBox" version="0.1" author="voyo@no-ip.pl">
     <params>
+        <param field="Address" label="IP Address" width="200px" required="true" default="127.0.0.1"/>
+        <param field="Port" label="Port" width="30px" required="true" default="502"/>
         <param field="SerialPort" label="Modbus Port" width="200px" required="true" default="/dev/ttyUSB0" />
         <param field="Mode1" label="Baud rate" width="40px" required="true" default="9600"  />
         <param field="Mode2" label="Device ID" width="40px" required="true" default="1" />
         <param field="Mode3" label="Reading Interval * 10s." width="40px" required="true" default="1" />
+        <param field="Mode4" label="Modbus type" width="75px">
+            <description><h2>Modbus type</h2>Select the desired type of modbus connection</description>
+            <options>
+                <option label="TCP" value="TCP" default="true" />
+                <option label="RTU" value="RTU" />
+            </options>
+        </param>
         <param field="Mode6" label="Debug" width="75px">
             <options>
                 <option label="True" value="Debug"/>
@@ -31,6 +40,11 @@ import minimalmodbus
 import serial
 import Domoticz
 from time import sleep
+
+# for TCP modbus connection
+from pyModbusTCP.client import ModbusClient
+from pymodbus.constants import Endian
+from pymodbus.payload import BinaryPayloadDecoder
 
 class Switch:
    def __init__(self,ID,name,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0):
@@ -137,6 +151,7 @@ class Switch:
         return value
 
 
+
    def UpdateSettingValue(self,RS485):
         if self.functioncode == 3 or self.functioncode == 4:
            while True:
@@ -213,6 +228,8 @@ class Dev:
                       
 
     def UpdateSensorValue(self,RS485):
+        if RS485.MyMode == "minimalmodbus":
+                 Domoticz.Log("minimalmodbus")
                  if self.functioncode == 3 or self.functioncode == 4:
                      while True:
                        try:
@@ -228,10 +245,37 @@ class Dev:
                  data = payload
                  Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed. 
                  if Parameters["Mode6"] == 'Debug':
-                     Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )                 
-                    
-
-
+                     Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
+        elif RS485.MyMode == "pymodbus":
+                Domoticz.Log("pymodbus")
+                if self.functioncode == 3:
+                        while True:
+                        try:
+                            payload = RS485.read_holding_registers(self.register,1,unit=RS485.MyUnit)
+                        except Exception as e:
+                            Domoticz.Log("Connection failure: "+str(e))
+                            Domoticz.Log("retry updating register in 2 s") 
+                            sleep(2.0)
+                            continue
+                        break
+                elif self.functioncode == 4:
+                        while True:
+                        try:
+                            payload = RS485.read_input_registers(self.register,1,unit=RS485.MyUnit)
+                        except Exception as e:
+                            Domoticz.Log("Connection failure: "+str(e))
+                            Domoticz.Log("retry updating register in 2 s") 
+                            sleep(2.0)
+                            continue
+                        break   
+                data = payload.registers[0]
+                Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed.
+                if Parameters["Mode6"] == 'Debug':
+                    Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
+        else:
+                Domoticz.Log("unknown ModBus mode")
+                return
+        
 class BasePlugin:
     def __init__(self):
         self.runInterval = 1
@@ -239,18 +283,38 @@ class BasePlugin:
         return
 
     def onStart(self):
-        self.RS485 = minimalmodbus.Instrument(Parameters["SerialPort"], int(Parameters["Mode2"]))
-        self.RS485.serial.baudrate = Parameters["Mode1"]
-        self.RS485.serial.bytesize = 8
-        self.RS485.serial.parity = minimalmodbus.serial.PARITY_NONE
-        self.RS485.serial.stopbits = 1
-        self.RS485.serial.timeout = 1
-        self.RS485.debug = False
-        self.RS485.mode = minimalmodbus.MODE_RTU
-        
+      # debug
+      if Parameters["Mode6"] == 'Debug':
+            Domoticz.Debugging(1)
+            DumpConfigToLog()
+            self.RS485.debug = True
+      if Parameters["Mode4"] == "RTU" or Parameters["Mode4"] == "ASCII":
+            Domoticz.Log("Using minimalmodbus library")
+            self.RS485 = minimalmodbus.Instrument(Parameters["SerialPort"], int(Parameters["Mode2"]))
+            self.RS485.serial.baudrate = Parameters["Mode1"]
+            self.RS485.serial.bytesize = 8
+            self.RS485.serial.parity = minimalmodbus.serial.PARITY_NONE
+            self.RS485.serial.stopbits = 1
+            self.RS485.serial.timeout = 1
+            self.RS485.MyMode = 'minimalmodbus
+            self.RS485.mode = minimalmodbus.MODE_RTU        
+      elif Parameters["Mode4"] == "TCP":
+            Domoticz.Debug("TCP mode is not supported by minimalmodbus, so we use pymodbus instead")
+        # TCP is not supported by minimalmodbus, so we use pymodbus
+ #       c = ModbusClient(host="127.0.0.1", auto_open=True, auto_close=True)
+            try: 
+                Domoticz.Log("Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
+                self.RS485 = ModbusClient(host=Parameters["Address"], port=int(Parameters["Port"]), unit_id=DeviceID, auto_open=True, auto_close=True, timeout=2)
+            except: 
+                Domoticz.Log("pyMmodbus connection failure")
+            self.RS485.MyMode = 'pymodbus'
+        else:
+            Domoticz.Log("Unknown mode: "+Parameters["Mode4"])
+
         devicecreated = []
         Domoticz.Log("Panasonic-IntesisBox-Modbus plugin start")
-        
+
+
 #     def __init__(self,    ID,name,nod,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0  ):
         self.sensors = [
                  Dev(1,"outdoor_temp",0,1,functioncode=3,TypeName="Temperature",Description="Outside temperature",signed=True),
