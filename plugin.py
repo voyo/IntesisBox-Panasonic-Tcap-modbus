@@ -50,10 +50,6 @@ class Switch:
    def __init__(self,ID,name,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0):
         self.ID = ID
         self.name = name
-#        self.type = type
-#        self.Type = Type
-#        self.Subtype = Subtype
-#        self.Switchtype=Switchtype
         self.register = register
         self.functioncode = functioncode
         self.Used=Used
