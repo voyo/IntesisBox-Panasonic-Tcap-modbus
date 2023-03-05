@@ -300,14 +300,9 @@ class BasePlugin:
             self.RS485.serial.timeout = 1
             self.RS485.MyMode = 'minimalmodbus'
             self.RS485.mode = minimalmodbus.MODE_RTU
-            if Parameters["Mode6"] == 'Debug':
-                self.RS485.debug = True
         elif Parameters["Mode4"] == "TCP":
             Domoticz.Debug("TCP mode is not supported by minimalmodbus, so we use pymodbus instead")
-            self.RS485.MyMode = 'minimalmodbus'
-            if Parameters["Mode6"] == 'Debug':
-                self.RS485.debug = True
-        # TCP is not supported by minimalmodbus, so we use pymodbus
+         # TCP is not supported by minimalmodbus, so we use pymodbus
  #       c = ModbusClient(host="127.0.0.1", auto_open=True, auto_close=True)
             try: 
                 Domoticz.Log("Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
@@ -318,8 +313,11 @@ class BasePlugin:
         else:
             Domoticz.Log("Unknown mode: "+Parameters["Mode4"])
 
+        if Parameters["Mode6"] == 'Debug':
+                self.RS485.debug = True            
         devicecreated = []
         Domoticz.Log("Panasonic-IntesisBox-Modbus plugin start")
+        
 
 
 #     def __init__(self,    ID,name,nod,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0  ):
