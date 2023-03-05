@@ -275,7 +275,9 @@ class Dev:
         else:
                 Domoticz.Log("unknown ModBus mode")
                 return
-        
+
+
+
 class BasePlugin:
     def __init__(self):
         self.runInterval = 1
@@ -297,9 +299,14 @@ class BasePlugin:
             self.RS485.serial.stopbits = 1
             self.RS485.serial.timeout = 1
             self.RS485.MyMode = 'minimalmodbus'
-            self.RS485.mode = minimalmodbus.MODE_RTU        
+            self.RS485.mode = minimalmodbus.MODE_RTU
+            if Parameters["Mode6"] == 'Debug':
+                self.RS485.debug = True
         elif Parameters["Mode4"] == "TCP":
             Domoticz.Debug("TCP mode is not supported by minimalmodbus, so we use pymodbus instead")
+            self.RS485.MyMode = 'minimalmodbus'
+            if Parameters["Mode6"] == 'Debug':
+                self.RS485.debug = True
         # TCP is not supported by minimalmodbus, so we use pymodbus
  #       c = ModbusClient(host="127.0.0.1", auto_open=True, auto_close=True)
             try: 
