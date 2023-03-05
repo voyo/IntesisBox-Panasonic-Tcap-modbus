@@ -253,7 +253,11 @@ class Dev:
                 if self.functioncode == 3:
                         while True:
                             try:
-                                value  = BinaryPayloadDecoder.fromRegisters(RS485.read_holding_registers(self.register, 1), byteorder=Endian.Big, wordorder=Endian.Big).decode_16bit_int()
+                                value  = RS485.read_holding_registers(self.register, 1)
+                                Domoticz.Log("value type : "+type (value))
+                                Domoticz.Log("value: "+str(value))
+                                Domoticz.Log("value: "+str(value.registers[0]))
+                                
                                 payload = value / 10 ** self.nod  # decimal places, divide by power of 10
                             except Exception as e:
                                 Domoticz.Log("Connection failure: "+str(e))
