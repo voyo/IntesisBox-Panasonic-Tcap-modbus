@@ -47,7 +47,7 @@ from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder
 
 class Switch:
-   def __init__(self,ID,name,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0):
+    def __init__(self,ID,name,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0):
         self.ID = ID
         self.name = name
 #        self.type = type
@@ -76,51 +76,11 @@ class Switch:
             else:
                  Domoticz.Device(Name=self.name, Unit=self.ID,Type=self.Type, Subtype=self.SubType, SwitchType=self.SwitchType, Used=self.Used,Options=self.options,Description=self.Description).Create()
                  Domoticz.Log("adding Dev with Type, "+str(self.Type))
+        else:
+            msg = "Device already exists: "+self.name+" "+str(self.ID)
+            Domoticz.Log(msg)
 
-
-""" #      Switch(52,"OperatingMode",4,functioncode=3,options={"LevelActions": "|act1| |act2|",
-#"LevelNames": "|" + "Heat" + "|" + "Heat Tank" + "|" + "Tank"+ "|" + "Cool Tank"+ "|" + "Cool"+ "|" + "Auto"+ "|" + "Auto Tank"+ "|" + "Auto Heat"+ "|" + "Auto Heat Tank"+ "|" + "Auto Cool"+ "|" + "Auto Cool Tank", "LevelOffHidden": "true", "SelectorStyle": "0"}),
-# 10,
-   def LevelValueConversion2Data(self,level):
-        Domoticz.Log("level2data, level:"+str(level)+" register:"+str(self.register))
-        if self.register==0:
-                value = level
-        if self.register==4:
-                value = (level / 10) 
-        if self.register==1111:
-                if level == 0:
-                  value = 0 # off
-                elif level==10:
-                  value = 0 # off
-                elif level==20:
-                  value = 1 # okap
-                elif level==30:
-                  value = 2 # kominek
-                elif level==40:
-                  value = 3 # WIETRZENIE (prze??. dzwonkowy)
-                elif level==50:
-                  value = 4 # WIETRZENIE (prze????cznik ON/OFF)
-                elif level==60:
-                    value = 5 # H2O/WIETRZENIE (higrostat)
-                elif level==70:
-                    value = 6 # JP/WIETRZENIE (cz. jako??ci pow.)
-                elif level==80:
-                    value = 7 # WIETRZENIE (aktywacja r??czna)
-                elif level==90:
-                    value = 8 # WIETRZENIE (tryb AUTOMATYCZNY)
-                elif level==100:
-                    value = 9 # WIETRZENIE (tryb MANUALNY)
-                elif level==110:
-                    value = 10 # OTWARTE OKNA
-                elif level==120:
-                    value = 11 # PUSTY DOM
-                else:
-                    Domoticz.Log("Level value conversion - data not valid level:"+str(level)+" register:"+str(self.register))    
-        if Parameters["Mode6"] == 'Debug':                    
-               Domoticz.Log("Conversion mapping from "+str(level)+" to "+str(value))
-        return value
- """
-   def CommandLevelConversion2data(self,command,level):
+    def CommandLevelConversion2data(self,command,level):
         Domoticz.Log("command2data, command:"+str(command)+" register: "+str(self.register)+" level: "+str(level) )
         if command=='On':
             return 1
@@ -133,8 +93,7 @@ class Switch:
              value = int(level / 10)
         return value           
    
-   
-   def LevelValueConversion2Level(self,data):
+    def LevelValueConversion2Level(self,data):
         Domoticz.Log("value2level, data:"+str(data)+" register:"+str(self.register))   
         if self.register==0:
                 if data == 0:
@@ -152,20 +111,20 @@ class Switch:
 
 
 
-   def UpdateSettingValue(self,RS485):
+    def UpdateSettingValue(self,RS485):
         if RS485.MyMode == "minimalmodbus":
             payload = RS485.read_register(self.register,functioncode=self.functioncode)
             if self.functioncode == 3 or self.functioncode == 4:
-            while True:
-                try:
-                    payload = RS485.read_register(self.register,number_of_decimals=self.nod,functioncode=self.functioncode)                       
-                except Exception as e:
-#                    Domoticz.Log("Connection failure: "+str(e))
-                    Domoticz.Log("Modbus connection failure")
-                    Domoticz.Log("retry updating register in 2 s") 
-                    sleep(2.0)
-                    continue
-                break
+                while True:
+                    try:
+                        payload = RS485.read_register(self.register,number_of_decimals=self.nod,functioncode=self.functioncode)                       
+                    except Exception as e:
+    #                    Domoticz.Log("Connection failure: "+str(e))
+                        Domoticz.Log("Modbus connection failure")
+                        Domoticz.Log("retry updating register in 2 s") 
+                        sleep(2.0)
+                        continue
+                    break
         elif RS485.MyMode == "pymodbus":
             if self.functioncode == 3:
                  while True:
@@ -208,7 +167,7 @@ class Switch:
                  Domoticz.Log("Updating switch: "+self.name+" wartosc z rejestru: "+str(data) + " , wartosc levelu: "+str(value))                 
 
 
-   def UpdateRegister(self,RS485,command,level):
+    def UpdateRegister(self,RS485,command,level):
         if command == "Set Level":
             value = self.LevelValueConversion2Data(command,level)
         else:
