@@ -78,7 +78,7 @@ class Switch:
                  Domoticz.Log("adding Dev with Type, "+str(self.Type))
 
 
-#      Switch(52,"OperatingMode",4,functioncode=3,options={"LevelActions": "|act1| |act2|",
+""" #      Switch(52,"OperatingMode",4,functioncode=3,options={"LevelActions": "|act1| |act2|",
 #"LevelNames": "|" + "Heat" + "|" + "Heat Tank" + "|" + "Tank"+ "|" + "Cool Tank"+ "|" + "Cool"+ "|" + "Auto"+ "|" + "Auto Tank"+ "|" + "Auto Heat"+ "|" + "Auto Heat Tank"+ "|" + "Auto Cool"+ "|" + "Auto Cool Tank", "LevelOffHidden": "true", "SelectorStyle": "0"}),
 # 10,
    def LevelValueConversion2Data(self,level):
@@ -119,7 +119,7 @@ class Switch:
         if Parameters["Mode6"] == 'Debug':                    
                Domoticz.Log("Conversion mapping from "+str(level)+" to "+str(value))
         return value
-
+ """
    def CommandLevelConversion2data(self,command,level):
         Domoticz.Log("command2data, command:"+str(command)+" register: "+str(self.register)+" level: "+str(level) )
         if command=='On':
@@ -183,7 +183,6 @@ class Switch:
 
 
    def UpdateRegister(self,RS485,command,level):
-#        value = self.LevelValueConversion2Data(level)
         value = self.CommandLevelConversion2data(command,level)
         Domoticz.Log("aktualizuje rejestr ,level:"+str(value)+" command:"+str(command))
         if Parameters["Mode6"] == 'Debug':
@@ -284,11 +283,11 @@ class BasePlugin:
 
     def onStart(self):
       # debug
-      if Parameters["Mode6"] == 'Debug':
+        if Parameters["Mode6"] == 'Debug':
             Domoticz.Debugging(1)
             DumpConfigToLog()
             self.RS485.debug = True
-      if Parameters["Mode4"] == "RTU" or Parameters["Mode4"] == "ASCII":
+        if Parameters["Mode4"] == "RTU" or Parameters["Mode4"] == "ASCII":
             Domoticz.Log("Using minimalmodbus library")
             self.RS485 = minimalmodbus.Instrument(Parameters["SerialPort"], int(Parameters["Mode2"]))
             self.RS485.serial.baudrate = Parameters["Mode1"]
@@ -298,7 +297,7 @@ class BasePlugin:
             self.RS485.serial.timeout = 1
             self.RS485.MyMode = 'minimalmodbus
             self.RS485.mode = minimalmodbus.MODE_RTU        
-      elif Parameters["Mode4"] == "TCP":
+        elif Parameters["Mode4"] == "TCP":
             Domoticz.Debug("TCP mode is not supported by minimalmodbus, so we use pymodbus instead")
         # TCP is not supported by minimalmodbus, so we use pymodbus
  #       c = ModbusClient(host="127.0.0.1", auto_open=True, auto_close=True)
