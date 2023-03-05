@@ -253,9 +253,8 @@ class Dev:
                 if self.functioncode == 3:
                         while True:
                             try:
-                                value  = RS485.read_holding_registers(self.register, 1).registers[0]
-#                                payload = value / 10 ** self.nod  # decimal places, divide by power of 10
-                                payload = value
+                                value  = BinaryPayloadDecoder.fromRegisters(RS485.read_holding_registers(self.register, 1), byteorder=Endian.Big, wordorder=Endian.Big).decode_16bit_int()
+                                payload = value / 10 ** self.nod  # decimal places, divide by power of 10
                             except Exception as e:
                                 Domoticz.Log("Connection failure: "+str(e))
                                 Domoticz.Log("retry updating register in 2 s") 
@@ -265,9 +264,8 @@ class Dev:
                 elif self.functioncode == 4:
                         while True:
                             try:
-                                value  = RS485.read_input_registers(self.register, 1).registers[0]
-#                                payload = value / 10 ** self.nod  # decimal places, divide by power of 10
-                                payload = value
+                                value  = BinaryPayloadDecoder.fromRegisters(RS485.read_input_registers(self.register, 1), byteorder=Endian.Big, wordorder=Endian.Big).decode_16bit_int()
+                                payload = value / 10 ** self.nod  # decimal places, divide by power of 10
                             except Exception as e:
                                 Domoticz.Log("Connection failure: "+str(e))
                                 Domoticz.Log("retry updating register in 2 s") 
