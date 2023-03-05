@@ -304,12 +304,13 @@ class BasePlugin:
             Domoticz.Debug("TCP mode is not supported by minimalmodbus, so we use pymodbus instead")
          # TCP is not supported by minimalmodbus, so we use pymodbus
  #       c = ModbusClient(host="127.0.0.1", auto_open=True, auto_close=True)
+            Domoticz.Log("1 Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
             try: 
-                Domoticz.Log("Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
+                Domoticz.Log("2 Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
                 self.RS485 = ModbusClient(host=Parameters["Address"], port=int(Parameters["Port"]), unit_id=DeviceID, auto_open=True, auto_close=True, timeout=2)
+                self.RS485.MyMode = 'pymodbus'
             except: 
                 Domoticz.Log("pyMmodbus connection failure")
-            self.RS485.MyMode = 'pymodbus'
         else:
             Domoticz.Log("Unknown mode: "+Parameters["Mode4"])
 
@@ -317,7 +318,7 @@ class BasePlugin:
                 self.RS485.debug = True            
         devicecreated = []
         Domoticz.Log("Panasonic-IntesisBox-Modbus plugin start")
-        
+
 
 
 #     def __init__(self,    ID,name,nod,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0  ):
