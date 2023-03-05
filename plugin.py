@@ -292,7 +292,7 @@ class BasePlugin:
         DeviceID=int(Parameters["Mode2"])
         if Parameters["Mode4"] == "RTU" or Parameters["Mode4"] == "ASCII":
             Domoticz.Log("Using minimalmodbus library")
-            self.RS485 = minimalmodbus.Instrument(Parameters["SerialPort"], DeviceID))
+            self.RS485 = minimalmodbus.Instrument(Parameters["SerialPort"], DeviceID)
             self.RS485.serial.baudrate = Parameters["Mode1"]
             self.RS485.serial.bytesize = 8
             self.RS485.serial.parity = minimalmodbus.serial.PARITY_NONE
