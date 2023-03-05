@@ -259,7 +259,7 @@ class Dev:
                                 Domoticz.Log("retry updating register in 2 s") 
                                 sleep(2.0)
                                 continue
-                            Domoticz.Log("value type : "+type (value))
+                            Domoticz.Log("value type : "+str(type(value)))
                             Domoticz.Log("value: "+str(value))
                             Domoticz.Log("value: "+str(value.registers[0]))
                             payload = value / 10 ** self.nod  # decimal places, divide by power of 10
