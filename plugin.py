@@ -254,16 +254,15 @@ class Dev:
                         while True:
                             try:
                                 value  = RS485.read_holding_registers(self.register, 1)
-                                Domoticz.Log("value type : "+type (value))
-                                Domoticz.Log("value: "+str(value))
-                                Domoticz.Log("value: "+str(value.registers[0]))
-                                
-                                payload = value / 10 ** self.nod  # decimal places, divide by power of 10
                             except Exception as e:
                                 Domoticz.Log("Connection failure: "+str(e))
                                 Domoticz.Log("retry updating register in 2 s") 
                                 sleep(2.0)
                                 continue
+                            Domoticz.Log("value type : "+type (value))
+                            Domoticz.Log("value: "+str(value))
+                            Domoticz.Log("value: "+str(value.registers[0]))
+                            payload = value / 10 ** self.nod  # decimal places, divide by power of 10
                             break
                 elif self.functioncode == 4:
                         while True:
