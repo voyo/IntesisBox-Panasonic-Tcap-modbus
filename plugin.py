@@ -50,17 +50,12 @@ class Switch:
     def __init__(self,ID,name,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0):
         self.ID = ID
         self.name = name
-#        self.type = type
-#        self.Type = Type
-#        self.Subtype = Subtype
-#        self.Switchtype=Switchtype
         self.register = register
         self.functioncode = functioncode
         self.Used=Used
         self.nod = 0
         self.value = 0
         self.options = options if options is not None else None        
-        
         self.TypeName = TypeName if TypeName is not None else ""
         self.Type = Type
         self.SubType = SubType
@@ -292,7 +287,7 @@ class BasePlugin:
         if Parameters["Mode6"] == 'Debug':
             Domoticz.Debugging(1)
             DumpConfigToLog()
-            self.RS485.debug = True
+#            self.RS485.debug = True
         if Parameters["Mode4"] == "RTU" or Parameters["Mode4"] == "ASCII":
             Domoticz.Log("Using minimalmodbus library")
             self.RS485 = minimalmodbus.Instrument(Parameters["SerialPort"], int(Parameters["Mode2"]))
