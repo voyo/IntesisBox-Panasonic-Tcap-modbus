@@ -272,7 +272,8 @@ class Dev:
                             break   
                 value = data
                 # convert value to signed int
-                Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(value)+" signed: "+str(self.signed+str(type(value)))
+                Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(value)+" signed: "+str(self.signed+str(type(value))))
+                
                 if value > 32767:
                     value -= 65536
                 data = value / 10 ** self.nod  # decimal places, divide by power of 10
