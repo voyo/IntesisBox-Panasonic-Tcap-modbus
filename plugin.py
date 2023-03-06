@@ -272,7 +272,7 @@ class Dev:
                             break   
                 value = data
                 # convert value to signed int
-                Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(value)+" signed: "+str(self.signed+str(type(value))))
+                Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(value[0])+" signed: "+str(self.signed+str(type(value))))
 
                 if value[0] > 32767:
                     value[0] -= 65536
