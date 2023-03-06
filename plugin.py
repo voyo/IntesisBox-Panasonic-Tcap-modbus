@@ -264,7 +264,7 @@ class Dev:
                             # convert value to signed int
                             if value[0] > 32767:
                                 value[0] -= 65536
-                            payload = value[0] / 10 ** self.nod  # decimal places, divide by power of 10
+                            payload = value / 10 ** self.nod  # decimal places, divide by power of 10
                             break
                 elif self.functioncode == 4:
                         while True:
@@ -277,7 +277,7 @@ class Dev:
                                 sleep(2.0)
                                 continue
                             break   
-                value = payload[0]
+                value = payload
                 # convert value to signed int
                 if value > 32767:
                     value -= 65536
