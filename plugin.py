@@ -235,7 +235,7 @@ class Dev:
                  if self.functioncode == 3 or self.functioncode == 4:
                      while True:
                        try:
-                           payload = RS485.read_register(self.register,number_of_decimals=self.nod,functioncode=self.functioncode,signed=self.signed)
+                           data = RS485.read_register(self.register,number_of_decimals=self.nod,functioncode=self.functioncode,signed=self.signed)
                        except Exception as e:
 #                           Domoticz.Log("Connection failure: "+str(e))
                            Domoticz.Log("Modbus connection failure")
@@ -253,7 +253,7 @@ class Dev:
                 if self.functioncode == 3:
                         while True:
                             try:
-                                value  = RS485.read_holding_registers(self.register, 1)
+                                data  = RS485.read_holding_registers(self.register, 1)
                             except Exception as e:
                                 Domoticz.Log("Connection failure: "+str(e))
                                 Domoticz.Log("retry updating register in 2 s") 
@@ -263,14 +263,14 @@ class Dev:
                 elif self.functioncode == 4:
                         while True:
                             try:
-                                value  = BinaryPayloadDecoder.fromRegisters(RS485.read_input_registers(self.register, 1), byteorder=Endian.Big, wordorder=Endian.Big).decode_16bit_int()
+                                data  = BinaryPayloadDecoder.fromRegisters(RS485.read_input_registers(self.register, 1), byteorder=Endian.Big, wordorder=Endian.Big).decode_16bit_int()
                             except Exception as e:
                                 Domoticz.Log("Connection failure: "+str(e))
                                 Domoticz.Log("retry updating register in 2 s") 
                                 sleep(2.0)
                                 continue
                             break   
-                value = payload
+                value = data
                 # convert value to signed int
                 if value > 32767:
                     value -= 65536
