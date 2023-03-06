@@ -272,12 +272,12 @@ class Dev:
                             break   
                 value = data
                 # convert value to signed int
-                Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(value[0])+" signed: "+str(self.signed+str(type(value))))
+                #Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(value[0])+" signed: "+str(self.signed+str(type(value))))
 
                 if value[0] > 32767:
                     value[0] -= 65536
                 data = value[0] / 10 ** self.nod  # decimal places, divide by power of 10
-                Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed.
+#                Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed.
                 if Parameters["Mode6"] == 'Debug':
                     Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
         else:
