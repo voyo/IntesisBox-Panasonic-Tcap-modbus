@@ -278,8 +278,8 @@ class Dev:
                     value[0] -= 65536
                 data = value[0] / 10 ** self.nod  # decimal places, divide by power of 10
 #                Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed.
-                if Parameters["Mode6"] == 'Debug':
-                    Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
+#                if Parameters["Mode6"] == 'Debug':
+#                    Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
         else:
                 Domoticz.Log("unknown ModBus mode")
                 return
