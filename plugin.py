@@ -261,7 +261,6 @@ class Dev:
                                 continue
                             Domoticz.Log("value type : "+str(type(value)))
                             Domoticz.Log("value: "+str(value))
-                            Domoticz.Log("value: "+str(value.registers[0]))
                             # convert value to signed int
                             if value[0] > 32767:
                                 value[0] -= 65536
@@ -278,7 +277,7 @@ class Dev:
                                 sleep(2.0)
                                 continue
                             break   
-                value = payload.registers[0]
+                value = payload[0]
                 # convert value to signed int
                 if value > 32767:
                     value -= 65536
