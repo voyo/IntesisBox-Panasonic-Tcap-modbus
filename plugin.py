@@ -262,6 +262,9 @@ class Dev:
                             Domoticz.Log("value type : "+str(type(value)))
                             Domoticz.Log("value: "+str(value))
                             Domoticz.Log("value: "+str(value.registers[0]))
+                            # convert value to signed int
+                            if value > 32767:
+                                value -= 65536
                             payload = value / 10 ** self.nod  # decimal places, divide by power of 10
                             break
                 elif self.functioncode == 4:
@@ -275,7 +278,11 @@ class Dev:
                                 sleep(2.0)
                                 continue
                             break   
-                data = payload.registers[0]
+                value = payload.registers[0]
+                # convert value to signed int
+                if value > 32767:
+                    value -= 65536
+                data = value / 10 ** self.nod  # decimal places, divide by power of 10
                 Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed.
                 if Parameters["Mode6"] == 'Debug':
                     Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
@@ -292,7 +299,6 @@ class BasePlugin:
         return
 
     def onStart(self):
-      # debug
         if Parameters["Mode6"] == 'Debug':
             Domoticz.Debugging(1)
             DumpConfigToLog()
@@ -309,8 +315,6 @@ class BasePlugin:
             self.RS485.mode = minimalmodbus.MODE_RTU
         elif Parameters["Mode4"] == "TCP":
             Domoticz.Debug("TCP mode is not supported by minimalmodbus, so we use pymodbus instead")
-         # TCP is not supported by minimalmodbus, so we use pymodbus
- #       c = ModbusClient(host="127.0.0.1", auto_open=True, auto_close=True)
             Domoticz.Log("1 Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
             try: 
                 Domoticz.Log("2 Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
@@ -326,14 +330,11 @@ class BasePlugin:
         devicecreated = []
         Domoticz.Log("Panasonic-IntesisBox-Modbus plugin start")
 
-
-
-#     def __init__(self,    ID,name,nod,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0  ):
         self.sensors = [
                  Dev(1,"outdoor_temp",0,1,functioncode=3,TypeName="Temperature",Description="Outside temperature",signed=True),
-                 Dev(2,"outlet_water_temp",0,2,functioncode=3,TypeName="Temperature",Description="Outlet temperature"),
-                 Dev(3,"inlet_temp",0,3,functioncode=3,TypeName="Temperature",Description="Inlet temperature"),
-                 Dev(4,"tank_water_temp",0,32,functioncode=3,TypeName="Temperature",Description="Tank water temperature"),
+                 Dev(2,"outlet_water_temp",0,2,functioncode=3,TypeName="Temperature",Description="Outlet temperature",signed=True),
+                 Dev(3,"inlet_temp",0,3,functioncode=3,TypeName="Temperature",Description="Inlet temperature",signed=True),
+                 Dev(4,"tank_water_temp",0,32,functioncode=3,TypeName="Temperature",Description="Tank water temperature",signed=True),
                  Dev(5,"Tank energy consumption",0,45,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption"),
                  Dev(6,"Heat energy consumption",0,46,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption"),
                  Dev(7,"Cool energy consumption",0,47,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption"),
@@ -342,33 +343,15 @@ class BasePlugin:
                  Dev(10,"Cool Energy Generation",0,189,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption"),
                  Dev(11,"Current error status",0,70,functioncode=3,TypeName="Alert",Description="Current error status")
             ]
-#   def __init__(self,    ID,name,register,functioncode: int = 3,options=None, Used: int = 1):
+
         self.settings = [
                  Switch(51,"System On/Off",0,functioncode=3),
                  Switch(52,"OperatingMode",4,functioncode=3,Type=244,SwitchType=18,SubType=0,options={"LevelActions": "|act1| |act2|","LevelNames": "|" + "Heat" + "|" + "Heat Tank" + "|" + "Tank"+ "|" + "Cool Tank"+ "|" + "Cool"+ "|" + "Auto"+ "|" + "Auto Tank"+ "|" + "Auto Heat"+ "|" + "Auto Heat Tank"+ "|" + "Auto Cool"+ "|" + "Auto Cool Tank", "LevelOffHidden": "true", "SelectorStyle": "1"}),
                  Switch(53,"Tank heater",34,functioncode=3),
                  Switch(54,"Tank set temp",33,functioncode=3,Description="Tank set temperature point", Type=242 , SubType=1),
                  Switch(55,"Valve direction",85,functioncode=3,Description="Valve direction",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|room| |tank|","LevelNames": "|" + "Room" + "|" + "Tank", "LevelOffHidden": "true", "SelectorStyle": "1"})
-
-  
-                 
-#   def __init__(self,ID,name,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0):
-#Domoticz.Device(Name="Set Temp", Unit=5, Type=242, Subtype=1, Image=16, Used=1).Create()
-
                   ]
 
-
-
-     #   Domoticz.Device(Name=self.name, Unit=self.ID,
-     #       Type=self.Type, Subtype=self.SubType, Switchtype=self.SwitchType, Used=self.Used,Options=self.options,Description=self.Description).Create()
-
-# create exceptional device
-#        Domoticz.Device(Name="Tank Setpoint",
-#                            Unit=55,
-#                            Image=15,
-#                            Type=242,
-#                            Subtype=1,
-#                            Used=1).Create()
 
     def onStop(self):
         Domoticz.Log("Panasonic-IntesisBox Modbus plugin stop")
@@ -401,13 +384,6 @@ class BasePlugin:
                         if Parameters["Mode6"] == 'Debug':
                             Domoticz.Log("in HeartBeat "+i.name+": "+format(i.value))
             self.runInterval = int(Parameters["Mode3"]) 
-
-            # update exceptional device, get data from modbus and update domoticz device
-            # Tank water setpoint temperature
- #           payload = self.RS485.read_register(33,0,3)
- #           Domoticz.Log("Getting data from modbus for device: Tank water setpoint temperature ID: 55 ,value: " + str(payload))
- #           Devices[55].Update(0,str(payload)+';0',True) 
-
 
 
 
