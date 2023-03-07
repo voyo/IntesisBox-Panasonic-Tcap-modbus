@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 Panasonic-IntesisBox. Domoticz plugin.
-
+tutaj
 Author: Wojtek Sawasciuk  <voyo@no-ip.pl>
 
 Requirements: 
@@ -147,21 +147,33 @@ class Switch:
             Domoticz.Log("Unknown Modbus mode")
 
         Domoticz.Log("Switch.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(payload) )
-        data = payload
 # 	for devices with 'level' we need to do conversion on domoticz levels, like 0->10, 1->20, 2->30 etc
+#tutaj        Devices[self.ID].Update(nValue=data, sValue=str(value))
+        data = payload
+# 	for devices with 'level' we need to do conversion on domoticz levels, like 0->10, 1->20, 2->30 etc        
         value = self.LevelValueConversion2Level(data)
         self.value = value
-        Domoticz.Log("data: "+str(data)+" value: "+str(value))
-#        Devices[self.ID].sValue=str(value)
-#        Domoticz.Log("nValue")
-#        Devices[self.ID].nValue=int(data)
-#        Domoticz.Log("Update")
-#        Devices[self.ID].Update(Log=True)  # force update, even if the value has no changed.
-#        Devices[self.ID].Update(0,str(data)+';0',True) # force update
-#        Devices[self.ID].Update(nValue=0, sValue = "Off")
-        Devices[self.ID].Update(nValue=data, sValue=str(value))
-        if Parameters["Mode6"] == 'Debug':
-                 Domoticz.Log("Updating switch: "+self.name+" wartosc z rejestru: "+str(data) + " , wartosc levelu: "+str(value))                 
+        Domoticz.Log("UPDATING switch: "+self.name+" wartosc: "+str(value) )
+        if self.TypeName == "Switch" or (self.Type == 244 and self.SubType == 73):
+            Domoticz.Log("Updating selector switch 244.73: ")
+            if value == 0:
+                Devices[self.ID].Update(nValue=0, sValue = "Off")
+            elif value > 0:
+                Devices[self.ID].Update(nValue=1, sValue = "On")
+        elif self.TypeName == "Selector Switch" or  (self.Type == 244 and self.SubType == 62):
+            Domoticz.Log("Updating selector switch 244.62: ")
+            if value == 0:
+                Devices[self.ID].Update(nValue=0, sValue = "Off")
+            elif value > 0:
+                Devices[self.ID].Update(nValue=1, sValue = str(value))
+        else: 
+            Domoticz.Log("Updating selector switch OTHER: ")
+            Devices[self.ID].Update(nValue=int(value),sValue=str(value))  # force update, even if the value has no changed.
+
+#        if Parameters["Mode6"] == 'Debug':
+#                 Domoticz.Log("Updating switch: "+self.name+"wartosc z rejestru: "+str(data) + " , wartosc levelu: "+str(value))  
+
+
 
 
     def UpdateRegister(self,RS485,command,level):
@@ -188,7 +200,7 @@ class Switch:
         elif RS485.MyMode == "pymodbus":
              while True:
                 try:
-                    RS485.write_register(self.register,value,unit=1)
+                    RS485.write_single_register(self.register,value)
                 except Exception as e:
                     Domoticz.Log("Connection failure: "+str(e))
                     Domoticz.Log("retry updating register in 2 s") 
@@ -243,7 +255,7 @@ class Dev:
                            sleep(2.0)
                            continue
                        break        
-                 Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(payload)+" signed: "+str(self.signed))
+#                 Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(payload)+" signed: "+str(self.signed))
                  data = payload
                  Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed. 
                  if Parameters["Mode6"] == 'Debug':
@@ -270,16 +282,17 @@ class Dev:
                                 sleep(2.0)
                                 continue
                             break   
+                Domoticz.Log("got value, updating device")    
                 value = data
                 # convert value to signed int
-                #Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(value[0])+" signed: "+str(self.signed+str(type(value))))
+                Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(value[0]))
 
                 if value[0] > 32767:
                     value[0] -= 65536
                 data = value[0] / 10 ** self.nod  # decimal places, divide by power of 10
-#                Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed.
-#                if Parameters["Mode6"] == 'Debug':
-#                    Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
+                Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed.
+                if Parameters["Mode6"] == 'Debug':
+                    Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
         else:
                 Domoticz.Log("unknown ModBus mode")
                 return
