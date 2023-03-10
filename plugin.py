@@ -75,7 +75,7 @@ class Switch:
             msg = "Device already exists: "+self.name+" "+str(self.ID)
             Domoticz.Log(msg)
 
-    def CommandLevelConversion2data(self,command,level):
+    def LevelValueConversion2Data(self,command,level):
         Domoticz.Log("command2data, command:"+str(command)+" register: "+str(self.register)+" level: "+str(level) )
         if command=='On':
             return 1
@@ -147,8 +147,6 @@ class Switch:
             Domoticz.Log("Unknown Modbus mode")
 
         Domoticz.Log("Switch.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(payload) )
-# 	for devices with 'level' we need to do conversion on domoticz levels, like 0->10, 1->20, 2->30 etc
-#tutaj        Devices[self.ID].Update(nValue=data, sValue=str(value))
         data = payload
 # 	for devices with 'level' we need to do conversion on domoticz levels, like 0->10, 1->20, 2->30 etc        
         value = self.LevelValueConversion2Level(data)
@@ -249,13 +247,11 @@ class Dev:
                        try:
                            data = RS485.read_register(self.register,number_of_decimals=self.nod,functioncode=self.functioncode,signed=self.signed)
                        except Exception as e:
-#                           Domoticz.Log("Connection failure: "+str(e))
-                           Domoticz.Log("Modbus connection failure")
+                           Domoticz.Log("Modbus connection failure: "+str(e))
                            Domoticz.Log("retry updating register in 2 s") 
                            sleep(2.0)
                            continue
                        break        
-#                 Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(payload)+" signed: "+str(self.signed))
                  data = payload
                  Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed. 
                  if Parameters["Mode6"] == 'Debug':
@@ -267,7 +263,7 @@ class Dev:
                             try:
                                 data  = RS485.read_holding_registers(self.register, 1)
                             except Exception as e:
-                                Domoticz.Log("Connection failure: "+str(e))
+                                Domoticz.Log("Modbus connection failure: "+str(e))
                                 Domoticz.Log("retry updating register in 2 s") 
                                 sleep(2.0)
                                 continue
@@ -277,7 +273,7 @@ class Dev:
                             try:
                                 data  = BinaryPayloadDecoder.fromRegisters(RS485.read_input_registers(self.register, 1), byteorder=Endian.Big, wordorder=Endian.Big).decode_16bit_int()
                             except Exception as e:
-                                Domoticz.Log("Connection failure: "+str(e))
+                                Domoticz.Log("Modbus connection failure: "+str(e))
                                 Domoticz.Log("retry updating register in 2 s") 
                                 sleep(2.0)
                                 continue
@@ -285,8 +281,6 @@ class Dev:
                 Domoticz.Log("got value, updating device")    
                 value = data
                 # convert value to signed int
-                Domoticz.Log("DEV.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(value[0]))
-
                 if value[0] > 32767:
                     value[0] -= 65536
                 data = value[0] / 10 ** self.nod  # decimal places, divide by power of 10
@@ -401,9 +395,10 @@ class BasePlugin:
         dev_len=len(self.sensors)
         try:
             Domoticz.Log("onCommand: Parameter " + str(u-1-50) )
+            # onCommand and then UpdateRegister makes sense only for settings devices (switches) , not for sensors
             self.settings[u-1-50].UpdateRegister(self.RS485,Command,Level)
         except Exception as e:
-            Domoticz.Log("Connection failure: "+str(e));
+            Domoticz.Log("Connection failure: "+str(e))
     
 
 
