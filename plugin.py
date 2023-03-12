@@ -197,8 +197,9 @@ class Switch:
                 break
         elif RS485.MyMode == "pymodbus":
              while True:
+                Domoticz.Log("Updating register: "+str(self.register)+" with value: "+str(int(value)))
                 try:
-                    RS485.write_single_register(self.register,value)
+                    RS485.write_single_register(self.register,int(value))
                 except Exception as e:
                     Domoticz.Log("Connection failure: "+str(e))
                     Domoticz.Log("retry updating register in 2 s") 
@@ -397,6 +398,9 @@ class BasePlugin:
             Domoticz.Log("onCommand: Parameter " + str(u-1-50) )
             # onCommand and then UpdateRegister makes sense only for settings devices (switches) , not for sensors
             self.settings[u-1-50].UpdateRegister(self.RS485,Command,Level)
+            # update the domoticz device value as well
+            Devices[u].Update(nValue=Devices[u].nValue, sValue=str(Level))
+      
         except Exception as e:
             Domoticz.Log("Connection failure: "+str(e))
     
