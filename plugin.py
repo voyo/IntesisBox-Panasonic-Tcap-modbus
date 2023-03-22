@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 """
 Panasonic-IntesisBox. Domoticz plugin.
-tutaj
 Author: Wojtek Sawasciuk  <voyo@no-ip.pl>
 
 Requirements: 
@@ -10,7 +9,7 @@ Requirements:
     2.Communication module Modbus USB to RS485 converter module
 """
 """
-<plugin key="Panasonic-IntesisBox" name="Panasonic-IntesisBox" version="0.8.1" author="voyo@no-ip.pl">
+<plugin key="Panasonic-IntesisBox" name="Panasonic-IntesisBox" version="0.9" author="voyo@no-ip.pl">
     <params>
         <param field="Address" label="IP Address" width="200px" required="true" default="127.0.0.1"/>
         <param field="Port" label="Port" width="30px" required="true" default="502"/>
@@ -63,20 +62,20 @@ class Switch:
         self.Description = Description if Description is not None else ""
 
         if self.ID not in Devices:
-            msg = "Registering device: "+self.name+" "+str(self.ID)
-            Domoticz.Log(msg)        
+            Domoticz.Log("Registering device: "+self.name+" "+str(self.ID))
             if self.TypeName != "":
-                 Domoticz.Log("adding Dev with TypeName, "+self.TypeName)
-                 Domoticz.Device(Name=self.name, Unit=self.ID, TypeName=self.TypeName,Used=self.Used,Options=self.options,Description=self.Description).Create()
+                Domoticz.Log("Adding device: "+self.name+" "+str(self.ID)+" "+self.TypeName+"  Description: "+str(self.Description))
+                Domoticz.Device(Name=self.name, Unit=self.ID, TypeName=self.TypeName,Used=self.Used,Options=self.options,Description=self.Description).Create()
             else:
-                 Domoticz.Device(Name=self.name, Unit=self.ID,Type=self.Type, Subtype=self.SubType, SwitchType=self.SwitchType, Used=self.Used,Options=self.options,Description=self.Description).Create()
-                 Domoticz.Log("adding Dev with Type, "+str(self.Type))
+                Domoticz.Device(Name=self.name, Unit=self.ID,Type=self.Type, Subtype=self.SubType, SwitchType=self.SwitchType, Used=self.Used,Options=self.options,Description=self.Description).Create()
+                Domoticz.Log("Adding device: name"+ self.name+", Type: "+str(self.Type)+" SubType: "+str(self.SubType)+" SwitchType: "+str(self.SwitchType))
+
         else:
             msg = "Device already exists: "+self.name+" "+str(self.ID)
             Domoticz.Log(msg)
 
     def LevelValueConversion2Data(self,command,level):
-        Domoticz.Log("command2data, command:"+str(command)+" register: "+str(self.register)+" level: "+str(level) )
+        Domoticz.Debug("command2data, command:"+str(command)+" register: "+str(self.register)+" level: "+str(level) )
         if command=='On':
             return 1
         if command=='Off':
@@ -89,7 +88,7 @@ class Switch:
         return value           
    
     def LevelValueConversion2Level(self,data):
-        Domoticz.Log("value2level, data:"+str(data)+" register:"+str(self.register))   
+        Domoticz.Debug("value2level, data:"+str(data)+" register:"+str(self.register))   
         if self.register==0:
                 if data == 0:
                     value = 'Off'
@@ -99,9 +98,8 @@ class Switch:
                 value = (data ) * 10
         else:
             value = data
-            Domoticz.Log("Level value conversion - data MIGHT be not valid: "+str(data)+" register: "+str(self.register))    
-        if Parameters["Mode6"] == 'Debug':                    
-               Domoticz.Log("Conversion mapping from "+str(data)+" to "+str(value))
+            Domoticz.Debug("Level value conversion - data MIGHT be not valid: "+str(data)+" register: "+str(self.register))    
+        Domoticz.Debug("Conversion mapping from "+str(data)+" to "+str(value))
         return value
 
 
@@ -146,32 +144,23 @@ class Switch:
         else:
             Domoticz.Log("Unknown Modbus mode")
 
-        Domoticz.Log("Switch.UPDATUJE wartosc z rejestru: "+str(self.register)+" value: "+str(payload) )
         data = payload
 # 	for devices with 'level' we need to do conversion on domoticz levels, like 0->10, 1->20, 2->30 etc        
         value = self.LevelValueConversion2Level(data)
         self.value = value
-        Domoticz.Log("UPDATING switch: "+self.name+" wartosc: "+str(value) )
+        Domoticz.Debug("UPDATING switch: "+self.name+" wartosc: "+str(value) )
         if self.TypeName == "Switch" or (self.Type == 244 and self.SubType == 73):
-            Domoticz.Log("Updating selector switch 244.73: ")
             if value == 0:
                 Devices[self.ID].Update(nValue=0, sValue = "Off")
             elif value > 0:
                 Devices[self.ID].Update(nValue=1, sValue = "On")
         elif self.TypeName == "Selector Switch" or  (self.Type == 244 and self.SubType == 62):
-            Domoticz.Log("Updating selector switch 244.62: ")
             if value == 0:
                 Devices[self.ID].Update(nValue=0, sValue = "Off")
             elif value > 0:
                 Devices[self.ID].Update(nValue=1, sValue = str(value))
         else: 
-            Domoticz.Log("Updating selector switch OTHER: ")
             Devices[self.ID].Update(nValue=int(value),sValue=str(value))  # force update, even if the value has no changed.
-
-#        if Parameters["Mode6"] == 'Debug':
-#                 Domoticz.Log("Updating switch: "+self.name+"wartosc z rejestru: "+str(data) + " , wartosc levelu: "+str(value))  
-
-
 
 
     def UpdateRegister(self,RS485,command,level):
@@ -183,7 +172,7 @@ class Switch:
             elif command == "Off":
                 value = 0
         if Parameters["Mode6"] == 'Debug':
-                Domoticz.Log("Updating register: "+str(self.register)+" with command: "+str(command)+" and level: "+str(level))
+                Domoticz.Debug("Updating register: "+str(self.register)+" with command: "+str(command)+" and level: "+str(level))
 
         if RS485.MyMode == "minimalmodbus":
             while True:
@@ -197,7 +186,7 @@ class Switch:
                 break
         elif RS485.MyMode == "pymodbus":
              while True:
-                Domoticz.Log("Updating register: "+str(self.register)+" with value: "+str(int(value)))
+                Domoticz.Debug("Updating register: "+str(self.register)+" with value: "+str(int(value)))
                 try:
                     RS485.write_single_register(self.register,int(value))
                 except Exception as e:
@@ -208,8 +197,7 @@ class Switch:
                 break
         else:
             Domoticz.Log("Unknown Modbus mode")
-        if Parameters["Mode6"] == 'Debug':    
-            Domoticz.Log("Register: "+str(self.register)+" updated with value: "+str(value))
+        Domoticz.Debug("Register: "+str(self.register)+" updated with value: "+str(value))
 
         
 
@@ -230,19 +218,17 @@ class Dev:
         self.Used=Used
         self.Description = Description if Description is not None else ""
         if self.ID not in Devices:
-            msg = "Registering device: "+self.name+" "+str(self.ID)+" "+self.TypeName+"  Description: "+str(self.Description);
-            Domoticz.Log(msg)        
+            Domoticz.Log("Registering device: "+self.name+" "+str(self.ID)+" "+self.TypeName+"  Description: "+str(self.Description))
             if self.TypeName != "":
-                 Domoticz.Log("adding Dev with TypeName, "+self.TypeName)
-                 Domoticz.Device(Name=self.name, Unit=self.ID, TypeName=self.TypeName,Used=self.Used,Options=self.options,Description=self.Description).Create()
+                Domoticz.Log("Adding device: "+self.name+" "+str(self.ID)+" "+self.TypeName+"  Description: "+str(self.Description))
+                Domoticz.Device(Name=self.name, Unit=self.ID, TypeName=self.TypeName,Used=self.Used,Options=self.options,Description=self.Description).Create()
             else:
-                 Domoticz.Device(Name=self.name, Unit=self.ID,Type=self.Type, Subtype=self.SubType, Switchtype=self.SwitchType, Used=self.Used,Options=self.options,Description=self.Description).Create()
-                 Domoticz.Log("adding Dev with Type, "+str(self.Type))
+                Domoticz.Device(Name=self.name, Unit=self.ID,Type=self.Type, Subtype=self.SubType, Switchtype=self.SwitchType, Used=self.Used,Options=self.options,Description=self.Description).Create()
+                Domoticz.Log("Adding device: name"+ self.name+", Type: "+str(self.Type)+" SubType: "+str(self.SubType)+" SwitchType: "+str(self.SwitchType))
                       
 
     def UpdateSensorValue(self,RS485):
         if RS485.MyMode == "minimalmodbus":
-                 Domoticz.Log("minimalmodbus")
                  if self.functioncode == 3 or self.functioncode == 4:
                      while True:
                        try:
@@ -258,7 +244,6 @@ class Dev:
                  if Parameters["Mode6"] == 'Debug':
                      Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
         elif RS485.MyMode == "pymodbus":
-                Domoticz.Log("pymodbus")
                 if self.functioncode == 3:
                         while True:
                             try:
@@ -279,15 +264,13 @@ class Dev:
                                 sleep(2.0)
                                 continue
                             break   
-                Domoticz.Log("got value, updating device")    
                 value = data
                 # convert value to signed int
                 if value[0] > 32767:
                     value[0] -= 65536
                 data = value[0] / 10 ** self.nod  # decimal places, divide by power of 10
                 Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed.
-                if Parameters["Mode6"] == 'Debug':
-                    Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
+                Domoticz.Debug("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
         else:
                 Domoticz.Log("unknown ModBus mode")
                 return
@@ -304,9 +287,11 @@ class BasePlugin:
         if Parameters["Mode6"] == 'Debug':
             Domoticz.Debugging(1)
             DumpConfigToLog()
+            Domoticz.Debug("Debugging enabled")
+
         DeviceID=int(Parameters["Mode2"])
         if Parameters["Mode4"] == "RTU" or Parameters["Mode4"] == "ASCII":
-            Domoticz.Log("Using minimalmodbus library")
+            Domoticz.Debug("Using minimalmodbus library")
             self.RS485 = minimalmodbus.Instrument(Parameters["SerialPort"], DeviceID)
             self.RS485.serial.baudrate = Parameters["Mode1"]
             self.RS485.serial.bytesize = 8
@@ -317,9 +302,9 @@ class BasePlugin:
             self.RS485.mode = minimalmodbus.MODE_RTU
         elif Parameters["Mode4"] == "TCP":
             Domoticz.Debug("TCP mode is not supported by minimalmodbus, so we use pymodbus instead")
-            Domoticz.Log("1 Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
+            Domoticz.Debug("Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
             try: 
-                Domoticz.Log("2 Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
+                Domoticz.Debug("Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
                 self.RS485 = ModbusClient(host=Parameters["Address"], port=int(Parameters["Port"]), unit_id=DeviceID, auto_open=True, auto_close=True, timeout=2)
                 self.RS485.MyMode = 'pymodbus'
             except: 
@@ -364,13 +349,12 @@ class BasePlugin:
             for i in self.sensors:
                 try:
                          # Get data from modbus
-                        Domoticz.Log("Getting data from modbus for device:"+i.name+" ID:"+str(i.ID))
+                        Domoticz.Debug("Getting data from modbus for device:"+i.name+" ID:"+str(i.ID))
                         self.sensors[i.ID-1].UpdateSensorValue(self.RS485)
                 except Exception as e:
                         Domoticz.Log("Update failure: "+str(e))
                 else:
-                        if Parameters["Mode6"] == 'Debug':
-                            Domoticz.Log("in HeartBeat "+i.name+": "+format(i.value))
+                        Domoticz.Debug("in HeartBeat "+i.name+": "+format(i.value))
             self.runInterval = int(Parameters["Mode3"])
 
             for i in self.settings:
@@ -378,24 +362,23 @@ class BasePlugin:
                 dev_len=len(self.sensors)
                 try:
                          # Get data from modbus
-                        Domoticz.Log("Getting data from modbus for device:"+i.name+" ID:"+str(i.ID))
+                        Domoticz.Debug("Getting data from modbus for device:"+i.name+" ID:"+str(i.ID))
                         self.settings[i.ID-1-50].UpdateSettingValue(self.RS485)
                 except Exception as e:
                         Domoticz.Log("Update failure: "+str(e))
                 else:
-                        if Parameters["Mode6"] == 'Debug':
-                            Domoticz.Log("in HeartBeat "+i.name+": "+format(i.value))
+                        Domoticz.Debug("in HeartBeat "+i.name+": "+format(i.value))
             self.runInterval = int(Parameters["Mode3"]) 
 
 
 
     def onCommand(self, u, Command, Level, Hue):
-        Domoticz.Log("onCommand called for Unit " + str(u) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
+        Domoticz.Debug("onCommand called for Unit " + str(u) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
         if Parameters["Mode6"] == 'Debug':
-                Domoticz.Log(str(Devices[u].Name) + ": onCommand called: Parameter '" + str(Command) + "', Level: " + str(Level))
+                Domoticz.Debug(str(Devices[u].Name) + ": onCommand called: Parameter '" + str(Command) + "', Level: " + str(Level))
         dev_len=len(self.sensors)
         try:
-            Domoticz.Log("onCommand: Parameter " + str(u-1-50) )
+            Domoticz.Debug("onCommand: Parameter " + str(u-1-50) )
             # onCommand and then UpdateRegister makes sense only for settings devices (switches) , not for sensors
             self.settings[u-1-50].UpdateRegister(self.RS485,Command,Level)
             # update the domoticz device value as well
@@ -422,7 +405,6 @@ def onStop():
 
 def onHeartbeat():
     global _plugin
-    Domoticz.Log("onHeartbeat called")
     _plugin.onHeartbeat()
 
 
