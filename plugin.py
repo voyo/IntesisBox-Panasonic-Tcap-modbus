@@ -126,7 +126,7 @@ class Switch:
             if self.functioncode == 3:
                  while True:
                     try:
-                        value = BinaryPayloadDecoder.fromRegisters(RS485.read_holding_registers(self.register, 1), byteorder=Endian.Big, wordorder=Endian.Big).decode_16bit_int()
+                        value = BinaryPayloadDecoder.fromRegisters(RS485.read_holding_registers(self.register, 1), byteorder=Endian.BIG, wordorder=Endian.BIG).decode_16bit_int()
                         payload = value / 10 ** self.nod  # decimal places, divide by power of 10
                     except Exception as e:
                         Domoticz.Log("Modbus connection failure")
@@ -137,7 +137,7 @@ class Switch:
             elif self.functioncode == 4:
                     while True:
                         try:
-                            value  = BinaryPayloadDecoder.fromRegisters(RS485.read_input_registers(self.register, 1), byteorder=Endian.Big, wordorder=Endian.Big).decode_16bit_int()
+                            value  = BinaryPayloadDecoder.fromRegisters(RS485.read_input_registers(self.register, 1), byteorder=Endian.BIG, wordorder=Endian.BIG).decode_16bit_int()
                             payload = value / 10 ** self.nod  # decimal places, divide by power of 10
                         except Exception as e:
                             Domoticz.Log("Modbus connection failure")
@@ -261,7 +261,7 @@ class Dev:
                 elif self.functioncode == 4:
                         while True:
                             try:
-                                data  = BinaryPayloadDecoder.fromRegisters(RS485.read_input_registers(self.register, 1), byteorder=Endian.Big, wordorder=Endian.Big).decode_16bit_int()
+                                data  = BinaryPayloadDecoder.fromRegisters(RS485.read_input_registers(self.register, 1), byteorder=Endian.BIG, wordorder=Endian.BIG).decode_16bit_int()
                             except Exception as e:
                                 Domoticz.Log("Modbus connection failure: "+str(e))
                                 Domoticz.Log("retry updating register in 2 s") 
