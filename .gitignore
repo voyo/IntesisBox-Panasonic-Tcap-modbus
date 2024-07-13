@@ -1,5 +1,7 @@
 *.log
 *.*~
+DEADJOE
+__pycache__
 
 # Mac OS X files and IDE directories.
 .DS_Store
