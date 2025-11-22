@@ -289,15 +289,10 @@ settings:
     name: "Valve direction"
     register: 85
     functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "Text"
     description: "Valve direction (read-only): Tank or Room"
-    type: 244
-    subtype: 62
-    switchtype: 18
-    options:
-      LevelActions: "|||"
-      LevelNames: "|Tank|Room"
-      LevelOffHidden: "true"
-      SelectorStyle: "1"
 
   - id: 57
     name: "Zone 1 setpoint temperature"

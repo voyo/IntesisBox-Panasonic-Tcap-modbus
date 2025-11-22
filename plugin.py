@@ -504,17 +504,11 @@ class Switch(ModbusDevice):
             value = int(level)
             Domoticz.Debug(f"Temperature setpoint conversion: level={level} -> value={value} (register {self.register})")
         # Selector switches (Type 244) - convert Domoticz level to device value
-        # Registers: 4 (OperatingMode), 5 (Heat temp method), 6 (Cool temp method), 85 (Valve direction)
+        # Registers: 4 (OperatingMode), 5 (Heat temp method), 6 (Cool temp method)
         elif self.Type == 244 and (self.SubType == 62 or self.SubType == 0):
-            # Special handling for Valve direction (register 85) - 0-based values
-            if self.register == 85:
-                # Valve direction is read-only, but if write attempted: level 10(Tank)->0, 20(Room)->1
-                value = int(level / 10) - 1
-                Domoticz.Debug(f"Valve direction conversion: level={level} -> value={value} (register {self.register})")
-            else:
-                # Standard selector: level (10, 20, 30...) to device value (1, 2, 3...)
-                value = int(level / 10)
-                Domoticz.Debug(f"Selector conversion: level={level} -> value={value} (register {self.register})")
+            # Standard selector: level (10, 20, 30...) to device value (1, 2, 3...)
+            value = int(level / 10)
+            Domoticz.Debug(f"Selector conversion: level={level} -> value={value} (register {self.register})")
         else:
             # Fallback - this shouldn't normally be reached
             if command=='Set Level':
@@ -535,10 +529,6 @@ class Switch(ModbusDevice):
         elif self.register==5 or self.register==6:
                 # For Heat/Cool temp method, convert to selector level (1->10, 2->20)
                 value = data * 10
-        elif self.register==85:
-                # For Valve direction, convert to selector level (0->10, 1->20)
-                # Device returns 0-based values: 0=Tank, 1=Room
-                value = (data + 1) * 10
         else:
             value = data
             Domoticz.Debug("Level value conversion - data MIGHT be not valid: "+str(data)+" register: "+str(self.register))
@@ -611,8 +601,16 @@ class Dev(ModbusDevice):
         """Read sensor value from Modbus and update Domoticz device"""
         # Use common read method from parent class (DRY)
         data = self._read_modbus_register(RS485)
-        Devices[self.ID].Update(0, str(data)+';'+str(data), True)
-        Domoticz.Debug(f"Device: {self.name} data={data} from register: {hex(self.register)}")
+
+        # Special handling for Valve direction (register 85)
+        if self.register == 85:
+            # Map 0=Tank, 1=Room
+            text_value = "Tank" if data == 0 else "Room"
+            Devices[self.ID].Update(0, text_value, True)
+            Domoticz.Debug(f"Device: {self.name} data={data} mapped to '{text_value}' from register: {hex(self.register)}")
+        else:
+            Devices[self.ID].Update(0, str(data)+';'+str(data), True)
+            Domoticz.Debug(f"Device: {self.name} data={data} from register: {hex(self.register)}")
 
 
 
@@ -719,9 +717,11 @@ class BasePlugin:
                      Switch(52,"OperatingMode",4,functioncode=3,Type=244,SwitchType=18,SubType=0,options={"LevelActions": "|act1| |act2|","LevelNames": "|" + "Heat" + "|" + "Heat Tank" + "|" + "Tank"+ "|" + "Cool Tank"+ "|" + "Cool"+ "|" + "Auto"+ "|" + "Auto Tank"+ "|" + "Auto Heat"+ "|" + "Auto Heat Tank"+ "|" + "Auto Cool"+ "|" + "Auto Cool Tank", "LevelOffHidden": "true", "SelectorStyle": "1"}),
                      Switch(53,"Heat temp method",5,functioncode=3,Description="Heat mode temperature setting method",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Compensation Curve" + "|" + "Direct", "LevelOffHidden": "true", "SelectorStyle": "1"}),
                      Switch(54,"Cool temp method",6,functioncode=3,Description="Cool mode temperature setting method",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Compensation Curve" + "|" + "Direct", "LevelOffHidden": "true", "SelectorStyle": "1"}),
-                     Switch(55,"Tank set temp",33,functioncode=3,Description="Tank set temperature point", Type=242 , SubType=1),
-                     Switch(56,"Valve direction",85,functioncode=3,Description="Valve direction (read-only)",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Tank" + "|" + "Room", "LevelOffHidden": "true", "SelectorStyle": "1"})
+                     Switch(55,"Tank set temp",33,functioncode=3,Description="Tank set temperature point", Type=242 , SubType=1)
                       ]
+
+            # Add read-only sensors to the sensors list
+            self.sensors.append(Dev(56,"Valve direction",0,85,functioncode=3,TypeName="Text",Description="Valve direction (read-only): Tank or Room"))
         else:
             # Build sensors from config
             Domoticz.Log("Loading sensors and settings from config.yaml")
