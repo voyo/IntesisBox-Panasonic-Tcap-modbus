@@ -63,4 +63,13 @@ The plugin includes automatic performance monitoring:
 
 All sensors and settings are configured in `config.yaml`. See the file for detailed configuration options.
 
+## Troubleshooting
+
+If you encounter issues like segmentation faults or conflicts with other plugins, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed solutions.
+
+**Common issues:**
+- **Segmentation fault at startup** - Conflict with pymodbus 3.x (see TROUBLESHOOTING.md)
+- **Connection failures** - Check network connectivity and timeouts
+- **Missing devices** - Verify config.yaml syntax
+
 
