@@ -110,6 +110,80 @@ sensors:
     typename: "Text"
     description: "Modbus connection health status"
 
+  - id: 13
+    name: "Current error status"
+    register: 70
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "Alert"
+    description: "Current error status (0=OK, 1=Error)"
+
+  # Zone 1 sensors
+  - id: 14
+    name: "Zone 1 current temperature"
+    register: 14
+    functioncode: 3
+    decimals: 0
+    signed: true
+    typename: "Temperature"
+    description: "Zone 1 actual temperature (water/room/pool depending on sensor type)"
+
+  - id: 15
+    name: "Zone 1 sensor type"
+    register: 10
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "Text"
+    description: "Zone 1 sensor type: 1=Water, 2=Ext room, 3=Int room, 4=Thermistor, 5=Pool"
+
+  - id: 16
+    name: "Zone 1 temp setting mode"
+    register: 16
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "Text"
+    description: "Zone 1 temp mode: 1=Room, 2=Compensation curve, 3=Direct, 4=Pool"
+
+  # COP (Coefficient of Performance) - calculated values
+  - id: 17
+    name: "Heat COP"
+    register: 0
+    functioncode: 3
+    decimals: 2
+    signed: false
+    typename: "Custom"
+    description: "Heat mode Coefficient of Performance (Energy Generated / Energy Consumed)"
+
+  - id: 18
+    name: "Cool COP"
+    register: 0
+    functioncode: 3
+    decimals: 2
+    signed: false
+    typename: "Custom"
+    description: "Cool mode Coefficient of Performance (Energy Generated / Energy Consumed)"
+
+  - id: 19
+    name: "Tank COP"
+    register: 0
+    functioncode: 3
+    decimals: 2
+    signed: false
+    typename: "Custom"
+    description: "Tank mode Coefficient of Performance (Energy Generated / Energy Consumed)"
+
+  - id: 20
+    name: "Overall COP"
+    register: 0
+    functioncode: 3
+    decimals: 2
+    signed: false
+    typename: "Custom"
+    description: "Overall system Coefficient of Performance"
+
 settings:
   - id: 51
     name: "System On/Off"
@@ -181,3 +255,11 @@ settings:
       LevelNames: "|Room|Tank"
       LevelOffHidden: "true"
       SelectorStyle: "1"
+
+  - id: 57
+    name: "Zone 1 setpoint temperature"
+    register: 12
+    functioncode: 3
+    description: "Zone 1 setpoint temperature (set point/heating curve offset). Range depends on mode: Water shift -5..5°C, Water 5..65°C, Room 10..30°C, Pool 15..35°C"
+    type: 242
+    subtype: 1

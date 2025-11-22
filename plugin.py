@@ -171,6 +171,45 @@ def getErrorHistoryString(plugin):
     history_str = "Recent errors:\n" + "\n".join(plugin.errorHistory[:5])
     return history_str
 
+def getZoneSensorTypeText(sensor_value):
+    """Convert zone sensor type value to text"""
+    sensor_types = {
+        1: "Water temperature",
+        2: "External room sensor",
+        3: "Internal room sensor",
+        4: "Room thermistor",
+        5: "Pool Sensor"
+    }
+    return sensor_types.get(sensor_value, f"Unknown ({sensor_value})")
+
+def getZoneTempSettingModeText(mode_value):
+    """Convert zone temperature setting mode value to text"""
+    modes = {
+        1: "Room temperature",
+        2: "Compensation curve (Water)",
+        3: "Direct (Water)",
+        4: "Pool temperature"
+    }
+    return modes.get(mode_value, f"Unknown ({mode_value})")
+
+def calculateCOP(energy_generated, energy_consumed):
+    """Calculate Coefficient of Performance (COP)
+
+    COP = Energy Generated / Energy Consumed
+    Higher COP means better efficiency
+    Typical values: 2.5 - 5.0 for heat pumps
+    """
+    if energy_consumed is None or energy_consumed <= 0:
+        return 0.0
+    if energy_generated is None or energy_generated < 0:
+        return 0.0
+
+    cop = energy_generated / energy_consumed
+    # Sanity check - COP should typically be between 0 and 10
+    if cop > 10:
+        Domoticz.Debug(f"COP value seems unusually high: {cop:.2f} (Generated: {energy_generated}, Consumed: {energy_consumed})")
+    return round(cop, 2)
+
 def loadConfig(configPath):
     """Load configuration from YAML file"""
     try:
@@ -446,6 +485,13 @@ class BasePlugin:
         self.maxErrorHistory = 10
         self.currentErrorCode = 0
         self.lastErrorCode = 0
+        # Energy values for COP calculation
+        self.heatEnergyGenerated = 0
+        self.heatEnergyConsumed = 0
+        self.coolEnergyGenerated = 0
+        self.coolEnergyConsumed = 0
+        self.tankEnergyGenerated = 0
+        self.tankEnergyConsumed = 0
         return
 
     def onStart(self):
@@ -671,9 +717,69 @@ class BasePlugin:
 
                         Devices[i.ID].Update(nValue=0, sValue=display_text)
                         Domoticz.Debug(f"Error code sensor updated: {display_text}")
+
+                    # Special handling for current error status (ID 13 - register 70)
+                    elif i.ID == 13:
+                        # This is an Alert sensor that shows 0=OK, 1=Error
+                        if self.RS485.MyMode == "pymodbus":
+                            data = self.RS485.read_holding_registers(70, 1)
+                            error_status = data[0] if data else 0
+                        else:
+                            error_status = self.RS485.read_register(70, number_of_decimals=0, functioncode=3)
+
+                        # Update Alert sensor
+                        if error_status == 0:
+                            Devices[i.ID].Update(nValue=0, sValue="No Error")
+                        else:
+                            Devices[i.ID].Update(nValue=4, sValue="Error Active")
+                        Domoticz.Debug(f"Error status sensor updated: {error_status}")
+
+                    # Special handling for Zone 1 sensor type (ID 15 - register 10)
+                    elif i.ID == 15:
+                        if self.RS485.MyMode == "pymodbus":
+                            data = self.RS485.read_holding_registers(10, 1)
+                            sensor_type = data[0] if data else 0
+                        else:
+                            sensor_type = self.RS485.read_register(10, number_of_decimals=0, functioncode=3)
+
+                        sensor_text = getZoneSensorTypeText(sensor_type)
+                        Devices[i.ID].Update(nValue=0, sValue=sensor_text)
+                        Domoticz.Debug(f"Zone 1 sensor type updated: {sensor_text}")
+
+                    # Special handling for Zone 1 temp setting mode (ID 16 - register 16)
+                    elif i.ID == 16:
+                        if self.RS485.MyMode == "pymodbus":
+                            data = self.RS485.read_holding_registers(16, 1)
+                            mode_value = data[0] if data else 0
+                        else:
+                            mode_value = self.RS485.read_register(16, number_of_decimals=0, functioncode=3)
+
+                        mode_text = getZoneTempSettingModeText(mode_value)
+                        Devices[i.ID].Update(nValue=0, sValue=mode_text)
+                        Domoticz.Debug(f"Zone 1 temp setting mode updated: {mode_text}")
+
+                    # COP sensors (ID 17-20) - will be calculated after all energy values are read
+                    elif i.ID in [17, 18, 19, 20]:
+                        # Skip COP sensors for now, will update them later
+                        pass
+
                     else:
                         # Normal sensor update
                         self.sensors[i.ID-1].UpdateSensorValue(self.RS485)
+
+                        # Store energy values for COP calculation
+                        if i.ID == 6:  # Heat energy consumption
+                            self.heatEnergyConsumed = float(Devices[i.ID].sValue.split(';')[0])
+                        elif i.ID == 7:  # Cool energy consumption
+                            self.coolEnergyConsumed = float(Devices[i.ID].sValue.split(';')[0])
+                        elif i.ID == 5:  # Tank energy consumption
+                            self.tankEnergyConsumed = float(Devices[i.ID].sValue.split(';')[0])
+                        elif i.ID == 9:  # Heat Energy Generation
+                            self.heatEnergyGenerated = float(Devices[i.ID].sValue.split(';')[0])
+                        elif i.ID == 10:  # Cool Energy Generation
+                            self.coolEnergyGenerated = float(Devices[i.ID].sValue.split(';')[0])
+                        elif i.ID == 8:  # Tank Energy Generation
+                            self.tankEnergyGenerated = float(Devices[i.ID].sValue.split(';')[0])
 
                 except Exception as e:
                     Domoticz.Log("Update failure: "+str(e))
@@ -681,6 +787,43 @@ class BasePlugin:
                 else:
                     if i.ID != 11:  # Already logged for error sensor
                         Domoticz.Debug("in HeartBeat "+i.name+": "+format(i.value))
+
+            # Calculate and update COP sensors (ID 17-20)
+            try:
+                # Heat COP (ID 17)
+                heatCOP = calculateCOP(self.heatEnergyGenerated, self.heatEnergyConsumed)
+                if 17 in Devices:
+                    Devices[17].Update(nValue=0, sValue=str(heatCOP))
+                    Domoticz.Debug(f"Heat COP updated: {heatCOP} (Generated: {self.heatEnergyGenerated}W, Consumed: {self.heatEnergyConsumed}W)")
+
+                # Cool COP (ID 18)
+                coolCOP = calculateCOP(self.coolEnergyGenerated, self.coolEnergyConsumed)
+                if 18 in Devices:
+                    Devices[18].Update(nValue=0, sValue=str(coolCOP))
+                    Domoticz.Debug(f"Cool COP updated: {coolCOP} (Generated: {self.coolEnergyGenerated}W, Consumed: {self.coolEnergyConsumed}W)")
+
+                # Tank COP (ID 19)
+                tankCOP = calculateCOP(self.tankEnergyGenerated, self.tankEnergyConsumed)
+                if 19 in Devices:
+                    Devices[19].Update(nValue=0, sValue=str(tankCOP))
+                    Domoticz.Debug(f"Tank COP updated: {tankCOP} (Generated: {self.tankEnergyGenerated}W, Consumed: {self.tankEnergyConsumed}W)")
+
+                # Overall COP (ID 20) - total energy generated / total energy consumed
+                totalGenerated = self.heatEnergyGenerated + self.coolEnergyGenerated + self.tankEnergyGenerated
+                totalConsumed = self.heatEnergyConsumed + self.coolEnergyConsumed + self.tankEnergyConsumed
+                overallCOP = calculateCOP(totalGenerated, totalConsumed)
+                if 20 in Devices:
+                    Devices[20].Update(nValue=0, sValue=str(overallCOP))
+                    Domoticz.Debug(f"Overall COP updated: {overallCOP} (Total Generated: {totalGenerated}W, Total Consumed: {totalConsumed}W)")
+
+                # Performance optimization alerts
+                if overallCOP > 0 and overallCOP < 2.0:
+                    Domoticz.Log(f"PERFORMANCE WARNING: Overall COP is low ({overallCOP}). Consider checking system settings or maintenance.")
+                elif overallCOP >= 4.0:
+                    Domoticz.Debug(f"PERFORMANCE EXCELLENT: Overall COP is high ({overallCOP}). System is running efficiently.")
+
+            except Exception as e:
+                Domoticz.Log(f"Failed to calculate COP: {e}")
 
             # Update connection health status (ID 12) - now as Text sensor
             if anyFailure:
