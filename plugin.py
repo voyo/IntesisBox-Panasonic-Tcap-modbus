@@ -437,15 +437,26 @@ class Switch(ModbusDevice):
             return 1
         if command=='Off':
             return 0
-        if self.register == 33:
-            # Tank set temp - direct value
-            value = level
-        elif self.register == 4 or self.register == 5 or self.register == 6 or self.register == 85:
-            # Selectors: convert level to value (10->1, 20->2, etc.)
+
+        # Temperature setpoint devices (Type 242, SubType 1) - use direct value
+        # Registers: 33 (Tank set temp), 12 (Zone 1 setpoint)
+        if self.Type == 242 and self.SubType == 1:
+            # Direct temperature value, no conversion needed
+            value = int(level)
+            Domoticz.Debug(f"Temperature setpoint conversion: level={level} -> value={value} (register {self.register})")
+        # Selector switches (Type 244) - convert Domoticz level to device value
+        # Registers: 4 (OperatingMode), 5 (Heat temp method), 6 (Cool temp method), 85 (Valve direction)
+        elif self.Type == 244 and (self.SubType == 62 or self.SubType == 0):
+            # Selector level (10, 20, 30...) to device value (1, 2, 3...)
             value = int(level / 10)
+            Domoticz.Debug(f"Selector conversion: level={level} -> value={value} (register {self.register})")
         else:
-          if command=='Set Level':
-             value = int(level / 10)
+            # Fallback - this shouldn't normally be reached
+            if command=='Set Level':
+                value = int(level / 10)
+                Domoticz.Log(f"Warning: Using fallback conversion for register {self.register}, Type {self.Type}, SubType {self.SubType}")
+            else:
+                value = int(level)
         return value           
    
     def LevelValueConversion2Level(self,data):
@@ -1002,7 +1013,13 @@ def onCommand(Unit, Command, Level, Hue):
     Domoticz.Log("onCommand called")
     _plugin.onCommand(Unit, Command, Level, Hue)
 
-   
+
+def onNotification(Name, Subject, Text, Status, Priority, Sound, ImageFile):
+    """Handle Domoticz notifications to prevent 'NOT handled' warnings"""
+    Domoticz.Debug(f"onNotification called: Name={Name}, Subject={Subject}, Text={Text}, Status={Status}")
+    # We don't need to do anything with notifications, but this handler prevents the warning
+    pass
+
 
 # Generic helper functions
 def DumpConfigToLog():

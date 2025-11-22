@@ -303,6 +303,7 @@ settings:
     name: "Zone 1 setpoint temperature"
     register: 12
     functioncode: 3
+    decimals: 0
     description: "Zone 1 setpoint temperature (set point/heating curve offset). Range depends on mode: Water shift -5..5°C, Water 5..65°C, Room 10..30°C, Pool 15..35°C"
     type: 242
     subtype: 1
