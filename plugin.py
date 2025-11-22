@@ -45,13 +45,12 @@ import Domoticz
 from time import sleep
 import yaml
 import os
+import json
 
 sleepInterval = 5 # sleep interval between modbus retry
 
 # for TCP modbus connection
 from pyModbusTCP.client import ModbusClient
-from pymodbus.constants import Endian
-from pymodbus.payload import BinaryPayloadDecoder
 
 # Error code mapping from IntesisBox manual (page 20-21)
 ERROR_CODES = {
@@ -114,6 +113,35 @@ def getErrorDescription(error_code):
     """Convert error code to human-readable description"""
     return ERROR_CODES.get(error_code, f"Unknown error code: {error_code}")
 
+def saveErrorHistory(plugin):
+    """Save error history to file"""
+    try:
+        historyPath = os.path.join(os.path.dirname(__file__), 'error_history.json')
+        with open(historyPath, 'w') as f:
+            json.dump({
+                'errorHistory': plugin.errorHistory,
+                'lastErrorCode': plugin.lastErrorCode
+            }, f, indent=2)
+    except Exception as e:
+        Domoticz.Error(f"Failed to save error history: {e}")
+
+def loadErrorHistory(plugin):
+    """Load error history from file"""
+    try:
+        historyPath = os.path.join(os.path.dirname(__file__), 'error_history.json')
+        if os.path.exists(historyPath):
+            with open(historyPath, 'r') as f:
+                data = json.load(f)
+                plugin.errorHistory = data.get('errorHistory', [])
+                plugin.lastErrorCode = data.get('lastErrorCode', 0)
+                Domoticz.Log(f"Loaded {len(plugin.errorHistory)} error history entries")
+        else:
+            Domoticz.Log("No error history file found, starting fresh")
+    except Exception as e:
+        Domoticz.Error(f"Failed to load error history: {e}")
+        plugin.errorHistory = []
+        plugin.lastErrorCode = 0
+
 def addToErrorHistory(plugin, error_code):
     """Add error code to error history list"""
     import datetime
@@ -131,6 +159,9 @@ def addToErrorHistory(plugin, error_code):
 
         plugin.lastErrorCode = error_code
         Domoticz.Log(f"Error logged: {error_entry}")
+
+        # Save to file
+        saveErrorHistory(plugin)
 
 def getErrorHistoryString(plugin):
     """Get error history as formatted string"""
@@ -193,17 +224,16 @@ class Switch:
         return value           
    
     def LevelValueConversion2Level(self,data):
-        Domoticz.Debug("value2level, data:"+str(data)+" register:"+str(self.register))   
+        Domoticz.Debug("value2level, data:"+str(data)+" register:"+str(self.register))
         if self.register==0:
-                if data == 0:
-                    value = 'Off'
-                if data == 1:
-                    value = 'On'    
-        if self.register==4:
+                # For On/Off switches, return numeric value directly
+                value = data
+        elif self.register==4:
+                # For OperatingMode, convert to selector level (0->0, 1->10, 2->20, etc.)
                 value = (data ) * 10
         else:
             value = data
-            Domoticz.Debug("Level value conversion - data MIGHT be not valid: "+str(data)+" register: "+str(self.register))    
+            Domoticz.Debug("Level value conversion - data MIGHT be not valid: "+str(data)+" register: "+str(self.register))
         Domoticz.Debug("Conversion mapping from "+str(data)+" to "+str(value))
         return value
 
@@ -227,22 +257,37 @@ class Switch:
             if self.functioncode == 3:
                  while True:
                     try:
-                        value = BinaryPayloadDecoder.fromRegisters(RS485.read_holding_registers(self.register, 1), byteorder=Endian.BIG, wordorder=Endian.BIG).decode_16bit_int()
-                        payload = value / 10 ** self.nod  # decimal places, divide by power of 10
+                        registers = RS485.read_holding_registers(self.register, 1)
+                        if registers:
+                            # Use signed 16-bit integer for temperature and other signed values
+                            value = registers[0]
+                            # Convert to signed if needed
+                            if value > 32767:
+                                value -= 65536
+                            payload = value / 10 ** self.nod  # decimal places, divide by power of 10
+                        else:
+                            payload = 0
                     except Exception as e:
                         Domoticz.Log("pyModbus connection failure")
-                        Domoticz.Log("retry updating register in "+str(sleepInterval)+"s") 
+                        Domoticz.Log("retry updating register in "+str(sleepInterval)+"s")
                         sleep(sleepInterval)
                         continue
                     break
             elif self.functioncode == 4:
                     while True:
                         try:
-                            value  = BinaryPayloadDecoder.fromRegisters(RS485.read_input_registers(self.register, 1), byteorder=Endian.BIG, wordorder=Endian.BIG).decode_16bit_int()
-                            payload = value / 10 ** self.nod  # decimal places, divide by power of 10
+                            registers = RS485.read_input_registers(self.register, 1)
+                            if registers:
+                                value = registers[0]
+                                # Convert to signed if needed
+                                if value > 32767:
+                                    value -= 65536
+                                payload = value / 10 ** self.nod  # decimal places, divide by power of 10
+                            else:
+                                payload = 0
                         except Exception as e:
                             Domoticz.Log("pyModbus connection failure")
-                            Domoticz.Log("retry updating register in "+str(sleepInterval)+"s")  
+                            Domoticz.Log("retry updating register in "+str(sleepInterval)+"s")
                             sleep(sleepInterval)
                             continue
                         break
@@ -355,20 +400,20 @@ class Dev:
                                 data  = RS485.read_holding_registers(self.register, 1)
                             except Exception as e:
                                 Domoticz.Log("Modbus connection failure: "+str(e))
-                                Domoticz.Log("retry updating register in "+str(sleepInterval)+"s")  
+                                Domoticz.Log("retry updating register in "+str(sleepInterval)+"s")
                                 sleep(sleepInterval)
                                 continue
                             break
                 elif self.functioncode == 4:
                         while True:
                             try:
-                                data  = BinaryPayloadDecoder.fromRegisters(RS485.read_input_registers(self.register, 1), byteorder=Endian.BIG, wordorder=Endian.BIG).decode_16bit_int()
+                                data  = RS485.read_input_registers(self.register, 1)
                             except Exception as e:
                                 Domoticz.Log("Modbus connection failure: "+str(e))
-                                Domoticz.Log("retry updating register in "+str(sleepInterval)+"s")  
+                                Domoticz.Log("retry updating register in "+str(sleepInterval)+"s")
                                 sleep(sleepInterval)
                                 continue
-                            break   
+                            break
                 value = data
                 # convert value to signed int
                 if value[0] > 32767:
@@ -398,6 +443,9 @@ class BasePlugin:
             Domoticz.Debugging(1)
             DumpConfigToLog()
             Domoticz.Debug("Debugging enabled")
+
+        # Load error history from file
+        loadErrorHistory(self)
 
         DeviceID=int(Parameters["Mode2"])
         if Parameters["Mode4"] == "RTU" or Parameters["Mode4"] == "ASCII":
@@ -526,6 +574,37 @@ class BasePlugin:
             Domoticz.Log(f"Failed to read error code: {e}")
             return 0
 
+    def readHistoricalErrors(self, RS485):
+        """Try to read historical error codes from additional modbus registers.
+
+        This function attempts to read registers 53-57 to check if historical
+        errors are stored there. You may need to consult your IntesisBox modbus
+        documentation to find the correct registers for error history.
+        """
+        historical_errors = []
+        # Try reading registers 53-57 (adjust based on your device's modbus map)
+        error_registers = [53, 54, 55, 56, 57]
+
+        for reg in error_registers:
+            try:
+                if RS485.MyMode == "pymodbus":
+                    data = RS485.read_holding_registers(reg, 1)
+                    if data and data[0] != 0:
+                        error_code = data[0]
+                        Domoticz.Debug(f"Found error code {error_code} in register {reg}")
+                        historical_errors.append(error_code)
+                elif RS485.MyMode == "minimalmodbus":
+                    error_code = RS485.read_register(reg, number_of_decimals=0, functioncode=3)
+                    if error_code != 0:
+                        Domoticz.Debug(f"Found error code {error_code} in register {reg}")
+                        historical_errors.append(error_code)
+            except Exception as e:
+                # Register might not exist, skip silently
+                Domoticz.Debug(f"Could not read register {reg}: {e}")
+                continue
+
+        return historical_errors
+
     def onHeartbeat(self):
         self.runInterval -= 1
         if self.runInterval <= 0:
@@ -549,6 +628,26 @@ class BasePlugin:
                         # Add to error history if new error
                         if errorCode != 0:
                             addToErrorHistory(self, errorCode)
+
+                        # Try to read historical errors from additional registers
+                        # This will check registers 53-57 for potential error history
+                        # Enable Debug mode to see which registers contain data
+                        historical_errors = self.readHistoricalErrors(self.RS485)
+                        if historical_errors:
+                            Domoticz.Log(f"Found {len(historical_errors)} historical error(s) in modbus registers")
+                            for hist_error in historical_errors:
+                                # Add historical errors to our history if not already there
+                                if hist_error != errorCode:  # Don't duplicate current error
+                                    error_exists = any(getErrorDescription(hist_error) in entry for entry in self.errorHistory)
+                                    if not error_exists:
+                                        import datetime
+                                        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                        error_desc = getErrorDescription(hist_error)
+                                        error_entry = f"{timestamp}: {error_desc} (from modbus history)"
+                                        self.errorHistory.append(error_entry)
+                                        Domoticz.Log(f"Added historical error: {error_entry}")
+                            # Save updated history
+                            saveErrorHistory(self)
 
                         # Display current error with description and history
                         error_desc = getErrorDescription(errorCode)

@@ -110,20 +110,14 @@ sensors:
     typename: "Text"
     description: "Modbus connection health status"
 
-  - id: 13
-    name: "Current error status"
-    register: 70
-    functioncode: 3
-    decimals: 0
-    signed: false
-    typename: "Alert"
-    description: "Current error status (0=OK, 1=Error)"
-
 settings:
   - id: 51
     name: "System On/Off"
     register: 0
     functioncode: 3
+    type: 244
+    subtype: 73
+    switchtype: 0
 
   - id: 52
     name: "OperatingMode"
@@ -142,6 +136,9 @@ settings:
     name: "Tank heater"
     register: 34
     functioncode: 3
+    type: 244
+    subtype: 73
+    switchtype: 0
 
   - id: 54
     name: "Tank set temp"
