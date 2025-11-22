@@ -231,6 +231,12 @@ class Switch:
         elif self.register==4:
                 # For OperatingMode, convert to selector level (0->0, 1->10, 2->20, etc.)
                 value = (data ) * 10
+        elif self.register==34:
+                # For Tank heater type, convert to selector level (1->10, 2->20)
+                value = data * 10
+        elif self.register==85:
+                # For Valve direction, convert to selector level (1->10, 2->20)
+                value = data * 10
         else:
             value = data
             Domoticz.Debug("Level value conversion - data MIGHT be not valid: "+str(data)+" register: "+str(self.register))
@@ -501,9 +507,9 @@ class BasePlugin:
             self.settings = [
                      Switch(51,"System On/Off",0,functioncode=3),
                      Switch(52,"OperatingMode",4,functioncode=3,Type=244,SwitchType=18,SubType=0,options={"LevelActions": "|act1| |act2|","LevelNames": "|" + "Heat" + "|" + "Heat Tank" + "|" + "Tank"+ "|" + "Cool Tank"+ "|" + "Cool"+ "|" + "Auto"+ "|" + "Auto Tank"+ "|" + "Auto Heat"+ "|" + "Auto Heat Tank"+ "|" + "Auto Cool"+ "|" + "Auto Cool Tank", "LevelOffHidden": "true", "SelectorStyle": "1"}),
-                     Switch(53,"Tank heater",34,functioncode=3),
+                     Switch(53,"Tank heater type",34,functioncode=3,Description="Tank heater type (read-only)",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Internal" + "|" + "External", "LevelOffHidden": "true", "SelectorStyle": "1"}),
                      Switch(54,"Tank set temp",33,functioncode=3,Description="Tank set temperature point", Type=242 , SubType=1),
-                     Switch(55,"Valve direction",85,functioncode=3,Description="Valve direction",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|room| |tank|","LevelNames": "|" + "Room" + "|" + "Tank", "LevelOffHidden": "true", "SelectorStyle": "1"})
+                     Switch(55,"Valve direction",85,functioncode=3,Description="Valve direction (read-only)",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Room" + "|" + "Tank", "LevelOffHidden": "true", "SelectorStyle": "1"})
                       ]
         else:
             # Build sensors from config

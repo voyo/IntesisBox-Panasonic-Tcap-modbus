@@ -133,12 +133,18 @@ settings:
       SelectorStyle: "1"
 
   - id: 53
-    name: "Tank heater"
+    name: "Tank heater type"
     register: 34
     functioncode: 3
+    description: "Tank heater type (read-only): Internal or External"
     type: 244
-    subtype: 73
-    switchtype: 0
+    subtype: 62
+    switchtype: 18
+    options:
+      LevelActions: "|||"
+      LevelNames: "|Internal|External"
+      LevelOffHidden: "true"
+      SelectorStyle: "1"
 
   - id: 54
     name: "Tank set temp"
@@ -152,12 +158,12 @@ settings:
     name: "Valve direction"
     register: 85
     functioncode: 3
-    description: "Valve direction"
+    description: "Valve direction (read-only): Room or Tank"
     type: 244
     subtype: 62
     switchtype: 18
     options:
-      LevelActions: "|room| |tank|"
+      LevelActions: "|||"
       LevelNames: "|Room|Tank"
       LevelOffHidden: "true"
       SelectorStyle: "1"
