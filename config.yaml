@@ -289,13 +289,13 @@ settings:
     name: "Valve direction"
     register: 85
     functioncode: 3
-    description: "Valve direction (read-only): Room or Tank"
+    description: "Valve direction (read-only): Tank or Room"
     type: 244
     subtype: 62
     switchtype: 18
     options:
       LevelActions: "|||"
-      LevelNames: "|Room|Tank"
+      LevelNames: "|Tank|Room"
       LevelOffHidden: "true"
       SelectorStyle: "1"
 

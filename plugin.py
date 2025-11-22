@@ -449,7 +449,7 @@ class Switch(ModbusDevice):
         elif self.Type == 244 and (self.SubType == 62 or self.SubType == 0):
             # Special handling for Valve direction (register 85) - 0-based values
             if self.register == 85:
-                # Valve direction is read-only, but if write attempted: level 10->0, 20->1
+                # Valve direction is read-only, but if write attempted: level 10(Tank)->0, 20(Room)->1
                 value = int(level / 10) - 1
                 Domoticz.Debug(f"Valve direction conversion: level={level} -> value={value} (register {self.register})")
             else:
@@ -478,7 +478,7 @@ class Switch(ModbusDevice):
                 value = data * 10
         elif self.register==85:
                 # For Valve direction, convert to selector level (0->10, 1->20)
-                # Device returns 0-based values: 0=Room, 1=Tank
+                # Device returns 0-based values: 0=Tank, 1=Room
                 value = (data + 1) * 10
         else:
             value = data
@@ -654,7 +654,7 @@ class BasePlugin:
                      Switch(53,"Heat temp method",5,functioncode=3,Description="Heat mode temperature setting method",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Compensation Curve" + "|" + "Direct", "LevelOffHidden": "true", "SelectorStyle": "1"}),
                      Switch(54,"Cool temp method",6,functioncode=3,Description="Cool mode temperature setting method",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Compensation Curve" + "|" + "Direct", "LevelOffHidden": "true", "SelectorStyle": "1"}),
                      Switch(55,"Tank set temp",33,functioncode=3,Description="Tank set temperature point", Type=242 , SubType=1),
-                     Switch(56,"Valve direction",85,functioncode=3,Description="Valve direction (read-only)",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Room" + "|" + "Tank", "LevelOffHidden": "true", "SelectorStyle": "1"})
+                     Switch(56,"Valve direction",85,functioncode=3,Description="Valve direction (read-only)",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Tank" + "|" + "Room", "LevelOffHidden": "true", "SelectorStyle": "1"})
                       ]
         else:
             # Build sensors from config
