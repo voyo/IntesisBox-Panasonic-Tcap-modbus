@@ -447,9 +447,15 @@ class Switch(ModbusDevice):
         # Selector switches (Type 244) - convert Domoticz level to device value
         # Registers: 4 (OperatingMode), 5 (Heat temp method), 6 (Cool temp method), 85 (Valve direction)
         elif self.Type == 244 and (self.SubType == 62 or self.SubType == 0):
-            # Selector level (10, 20, 30...) to device value (1, 2, 3...)
-            value = int(level / 10)
-            Domoticz.Debug(f"Selector conversion: level={level} -> value={value} (register {self.register})")
+            # Special handling for Valve direction (register 85) - 0-based values
+            if self.register == 85:
+                # Valve direction is read-only, but if write attempted: level 10->0, 20->1
+                value = int(level / 10) - 1
+                Domoticz.Debug(f"Valve direction conversion: level={level} -> value={value} (register {self.register})")
+            else:
+                # Standard selector: level (10, 20, 30...) to device value (1, 2, 3...)
+                value = int(level / 10)
+                Domoticz.Debug(f"Selector conversion: level={level} -> value={value} (register {self.register})")
         else:
             # Fallback - this shouldn't normally be reached
             if command=='Set Level':
@@ -471,8 +477,9 @@ class Switch(ModbusDevice):
                 # For Heat/Cool temp method, convert to selector level (1->10, 2->20)
                 value = data * 10
         elif self.register==85:
-                # For Valve direction, convert to selector level (1->10, 2->20)
-                value = data * 10
+                # For Valve direction, convert to selector level (0->10, 1->20)
+                # Device returns 0-based values: 0=Room, 1=Tank
+                value = (data + 1) * 10
         else:
             value = data
             Domoticz.Debug("Level value conversion - data MIGHT be not valid: "+str(data)+" register: "+str(self.register))
