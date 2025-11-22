@@ -217,8 +217,12 @@ class Switch:
         if command=='Off':
             return 0
         if self.register == 33:
+            # Tank set temp - direct value
             value = level
-        else:          
+        elif self.register == 4 or self.register == 5 or self.register == 6 or self.register == 85:
+            # Selectors: convert level to value (10->1, 20->2, etc.)
+            value = int(level / 10)
+        else:
           if command=='Set Level':
              value = int(level / 10)
         return value           
@@ -231,8 +235,8 @@ class Switch:
         elif self.register==4:
                 # For OperatingMode, convert to selector level (0->0, 1->10, 2->20, etc.)
                 value = (data ) * 10
-        elif self.register==34:
-                # For Tank heater type, convert to selector level (1->10, 2->20)
+        elif self.register==5 or self.register==6:
+                # For Heat/Cool temp method, convert to selector level (1->10, 2->20)
                 value = data * 10
         elif self.register==85:
                 # For Valve direction, convert to selector level (1->10, 2->20)
@@ -507,9 +511,10 @@ class BasePlugin:
             self.settings = [
                      Switch(51,"System On/Off",0,functioncode=3),
                      Switch(52,"OperatingMode",4,functioncode=3,Type=244,SwitchType=18,SubType=0,options={"LevelActions": "|act1| |act2|","LevelNames": "|" + "Heat" + "|" + "Heat Tank" + "|" + "Tank"+ "|" + "Cool Tank"+ "|" + "Cool"+ "|" + "Auto"+ "|" + "Auto Tank"+ "|" + "Auto Heat"+ "|" + "Auto Heat Tank"+ "|" + "Auto Cool"+ "|" + "Auto Cool Tank", "LevelOffHidden": "true", "SelectorStyle": "1"}),
-                     Switch(53,"Tank heater type",34,functioncode=3,Description="Tank heater type (read-only)",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Internal" + "|" + "External", "LevelOffHidden": "true", "SelectorStyle": "1"}),
-                     Switch(54,"Tank set temp",33,functioncode=3,Description="Tank set temperature point", Type=242 , SubType=1),
-                     Switch(55,"Valve direction",85,functioncode=3,Description="Valve direction (read-only)",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Room" + "|" + "Tank", "LevelOffHidden": "true", "SelectorStyle": "1"})
+                     Switch(53,"Heat temp method",5,functioncode=3,Description="Heat mode temperature setting method",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Compensation Curve" + "|" + "Direct", "LevelOffHidden": "true", "SelectorStyle": "1"}),
+                     Switch(54,"Cool temp method",6,functioncode=3,Description="Cool mode temperature setting method",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Compensation Curve" + "|" + "Direct", "LevelOffHidden": "true", "SelectorStyle": "1"}),
+                     Switch(55,"Tank set temp",33,functioncode=3,Description="Tank set temperature point", Type=242 , SubType=1),
+                     Switch(56,"Valve direction",85,functioncode=3,Description="Valve direction (read-only)",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|||","LevelNames": "|" + "Room" + "|" + "Tank", "LevelOffHidden": "true", "SelectorStyle": "1"})
                       ]
         else:
             # Build sensors from config

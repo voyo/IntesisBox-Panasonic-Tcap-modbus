@@ -133,20 +133,34 @@ settings:
       SelectorStyle: "1"
 
   - id: 53
-    name: "Tank heater type"
-    register: 34
+    name: "Heat temp method"
+    register: 5
     functioncode: 3
-    description: "Tank heater type (read-only): Internal or External"
+    description: "Heat mode temperature setting method: Compensation Curve (auto based on outdoor temp) or Direct (manual setpoint)"
     type: 244
     subtype: 62
     switchtype: 18
     options:
       LevelActions: "|||"
-      LevelNames: "|Internal|External"
+      LevelNames: "|Compensation Curve|Direct"
       LevelOffHidden: "true"
       SelectorStyle: "1"
 
   - id: 54
+    name: "Cool temp method"
+    register: 6
+    functioncode: 3
+    description: "Cool mode temperature setting method: Compensation Curve (auto based on outdoor temp) or Direct (manual setpoint)"
+    type: 244
+    subtype: 62
+    switchtype: 18
+    options:
+      LevelActions: "|||"
+      LevelNames: "|Compensation Curve|Direct"
+      LevelOffHidden: "true"
+      SelectorStyle: "1"
+
+  - id: 55
     name: "Tank set temp"
     register: 33
     functioncode: 3
@@ -154,7 +168,7 @@ settings:
     type: 242
     subtype: 1
 
-  - id: 55
+  - id: 56
     name: "Valve direction"
     register: 85
     functioncode: 3
