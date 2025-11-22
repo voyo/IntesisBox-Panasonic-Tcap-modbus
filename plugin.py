@@ -43,6 +43,8 @@ import minimalmodbus
 import serial
 import Domoticz
 from time import sleep
+import yaml
+import os
 
 sleepInterval = 5 # sleep interval between modbus retry
 
@@ -50,6 +52,16 @@ sleepInterval = 5 # sleep interval between modbus retry
 from pyModbusTCP.client import ModbusClient
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder
+
+def loadConfig(configPath):
+    """Load configuration from YAML file"""
+    try:
+        with open(configPath, 'r') as f:
+            config = yaml.safe_load(f)
+        return config
+    except Exception as e:
+        Domoticz.Error("Failed to load config file: "+str(e))
+        return None
 
 class Switch:
     def __init__(self,ID,name,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0):
@@ -287,6 +299,7 @@ class BasePlugin:
     def __init__(self):
         self.runInterval = 1
         self.RS485 = ""
+        self.connectionHealthy = True
         return
 
     def onStart(self):
@@ -319,31 +332,69 @@ class BasePlugin:
             Domoticz.Log("Unknown mode: "+Parameters["Mode4"])
 
         if Parameters["Mode6"] == 'Debug':
-                self.RS485.debug = True            
+                self.RS485.debug = True
         devicecreated = []
         Domoticz.Log("Panasonic-IntesisBox-Modbus plugin start")
 
-        self.sensors = [
-                 Dev(1,"outdoor_temp",0,1,functioncode=3,TypeName="Temperature",Description="Outside temperature",signed=True),
-                 Dev(2,"outlet_water_temp",0,2,functioncode=3,TypeName="Temperature",Description="Outlet temperature",signed=True),
-                 Dev(3,"inlet_temp",0,3,functioncode=3,TypeName="Temperature",Description="Inlet temperature",signed=True),
-                 Dev(4,"tank_water_temp",0,32,functioncode=3,TypeName="Temperature",Description="Tank water temperature",signed=True),
-                 Dev(5,"Tank energy consumption",0,45,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption"),
-                 Dev(6,"Heat energy consumption",0,46,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption"),
-                 Dev(7,"Cool energy consumption",0,47,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption"),
-                 Dev(8,"Tank Energy Generation",0,187,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption"),
-                 Dev(9,"Heat Energy Generation",0,188,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption"),
-                 Dev(10,"Cool Energy Generation",0,189,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption"),
-                 Dev(11,"Current error status",0,70,functioncode=3,TypeName="Alert",Description="Current error status")
-            ]
+        # Load configuration from external file
+        configPath = os.path.join(os.path.dirname(__file__), 'config.yaml')
+        config = loadConfig(configPath)
 
-        self.settings = [
-                 Switch(51,"System On/Off",0,functioncode=3),
-                 Switch(52,"OperatingMode",4,functioncode=3,Type=244,SwitchType=18,SubType=0,options={"LevelActions": "|act1| |act2|","LevelNames": "|" + "Heat" + "|" + "Heat Tank" + "|" + "Tank"+ "|" + "Cool Tank"+ "|" + "Cool"+ "|" + "Auto"+ "|" + "Auto Tank"+ "|" + "Auto Heat"+ "|" + "Auto Heat Tank"+ "|" + "Auto Cool"+ "|" + "Auto Cool Tank", "LevelOffHidden": "true", "SelectorStyle": "1"}),
-                 Switch(53,"Tank heater",34,functioncode=3),
-                 Switch(54,"Tank set temp",33,functioncode=3,Description="Tank set temperature point", Type=242 , SubType=1),
-                 Switch(55,"Valve direction",85,functioncode=3,Description="Valve direction",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|room| |tank|","LevelNames": "|" + "Room" + "|" + "Tank", "LevelOffHidden": "true", "SelectorStyle": "1"})
-                  ]
+        if config is None:
+            Domoticz.Error("Failed to load config, using default configuration")
+            # Fallback to hardcoded configuration
+            self.sensors = [
+                     Dev(1,"outdoor_temp",0,1,functioncode=3,TypeName="Temperature",Description="Outside temperature",signed=True),
+                     Dev(2,"outlet_water_temp",0,2,functioncode=3,TypeName="Temperature",Description="Outlet temperature",signed=True),
+                     Dev(3,"inlet_temp",0,3,functioncode=3,TypeName="Temperature",Description="Inlet temperature",signed=True),
+                     Dev(4,"tank_water_temp",0,32,functioncode=3,TypeName="Temperature",Description="Tank water temperature",signed=True),
+                     Dev(5,"Tank energy consumption",0,45,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption"),
+                     Dev(6,"Heat energy consumption",0,46,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption"),
+                     Dev(7,"Cool energy consumption",0,47,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption"),
+                     Dev(8,"Tank Energy Generation",0,187,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption"),
+                     Dev(9,"Heat Energy Generation",0,188,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption"),
+                     Dev(10,"Cool Energy Generation",0,189,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption"),
+                     Dev(11,"Current error status",0,70,functioncode=3,TypeName="Alert",Description="Current error status"),
+                     Dev(12,"Connection Health",0,0,functioncode=3,TypeName="Switch",Description="Modbus connection health status")
+                ]
+
+            self.settings = [
+                     Switch(51,"System On/Off",0,functioncode=3),
+                     Switch(52,"OperatingMode",4,functioncode=3,Type=244,SwitchType=18,SubType=0,options={"LevelActions": "|act1| |act2|","LevelNames": "|" + "Heat" + "|" + "Heat Tank" + "|" + "Tank"+ "|" + "Cool Tank"+ "|" + "Cool"+ "|" + "Auto"+ "|" + "Auto Tank"+ "|" + "Auto Heat"+ "|" + "Auto Heat Tank"+ "|" + "Auto Cool"+ "|" + "Auto Cool Tank", "LevelOffHidden": "true", "SelectorStyle": "1"}),
+                     Switch(53,"Tank heater",34,functioncode=3),
+                     Switch(54,"Tank set temp",33,functioncode=3,Description="Tank set temperature point", Type=242 , SubType=1),
+                     Switch(55,"Valve direction",85,functioncode=3,Description="Valve direction",Type=244,SwitchType=18,SubType=62,options={"LevelActions": "|room| |tank|","LevelNames": "|" + "Room" + "|" + "Tank", "LevelOffHidden": "true", "SelectorStyle": "1"})
+                      ]
+        else:
+            # Build sensors from config
+            Domoticz.Log("Loading sensors and settings from config.yaml")
+            self.sensors = []
+            for sensor in config.get('sensors', []):
+                self.sensors.append(Dev(
+                    sensor['id'],
+                    sensor['name'],
+                    sensor.get('decimals', 0),
+                    sensor['register'],
+                    functioncode=sensor.get('functioncode', 3),
+                    TypeName=sensor.get('typename', ''),
+                    Description=sensor.get('description', ''),
+                    signed=sensor.get('signed', False)
+                ))
+
+            # Build settings from config
+            self.settings = []
+            for setting in config.get('settings', []):
+                self.settings.append(Switch(
+                    setting['id'],
+                    setting['name'],
+                    setting['register'],
+                    functioncode=setting.get('functioncode', 3),
+                    Description=setting.get('description', ''),
+                    Type=setting.get('type', 0),
+                    SubType=setting.get('subtype', 0),
+                    SwitchType=setting.get('switchtype', 0),
+                    options=setting.get('options', None)
+                ))
 
 
     def onStop(self):
@@ -352,15 +403,29 @@ class BasePlugin:
     def onHeartbeat(self):
         self.runInterval -= 1
         if self.runInterval <= 0:
+            anyFailure = False
             for i in self.sensors:
+                # Skip the connection health sensor itself
+                if i.ID == 12:
+                    continue
                 try:
                          # Get data from modbus
                         Domoticz.Debug("Getting data from modbus for device:"+i.name+" ID:"+str(i.ID))
                         self.sensors[i.ID-1].UpdateSensorValue(self.RS485)
                 except Exception as e:
                         Domoticz.Log("Update failure: "+str(e))
+                        anyFailure = True
                 else:
                         Domoticz.Debug("in HeartBeat "+i.name+": "+format(i.value))
+
+            # Update connection health status
+            if anyFailure:
+                self.connectionHealthy = False
+                Devices[12].Update(nValue=0, sValue="Off")
+            else:
+                self.connectionHealthy = True
+                Devices[12].Update(nValue=1, sValue="On")
+
             self.runInterval = int(Parameters["Mode3"])
 
             for i in self.settings:

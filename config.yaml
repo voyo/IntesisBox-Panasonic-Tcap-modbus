@@ -1,0 +1,157 @@
+# Panasonic IntesisBox Modbus Register Configuration
+# This file defines the sensors and settings for the Modbus interface
+
+sensors:
+  - id: 1
+    name: "outdoor_temp"
+    register: 1
+    functioncode: 3
+    decimals: 0
+    signed: true
+    typename: "Temperature"
+    description: "Outside temperature"
+
+  - id: 2
+    name: "outlet_water_temp"
+    register: 2
+    functioncode: 3
+    decimals: 0
+    signed: true
+    typename: "Temperature"
+    description: "Outlet temperature"
+
+  - id: 3
+    name: "inlet_temp"
+    register: 3
+    functioncode: 3
+    decimals: 0
+    signed: true
+    typename: "Temperature"
+    description: "Inlet temperature"
+
+  - id: 4
+    name: "tank_water_temp"
+    register: 32
+    functioncode: 3
+    decimals: 0
+    signed: true
+    typename: "Temperature"
+    description: "Tank water temperature"
+
+  - id: 5
+    name: "Tank energy consumption"
+    register: 45
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "kWh"
+    description: "Tank mode energy consumption"
+
+  - id: 6
+    name: "Heat energy consumption"
+    register: 46
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "kWh"
+    description: "Heat mode energy consumption"
+
+  - id: 7
+    name: "Cool energy consumption"
+    register: 47
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "kWh"
+    description: "Cool mode energy consumption"
+
+  - id: 8
+    name: "Tank Energy Generation"
+    register: 187
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "kWh"
+    description: "Tank mode energy consumption"
+
+  - id: 9
+    name: "Heat Energy Generation"
+    register: 188
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "kWh"
+    description: "Heat mode energy consumption"
+
+  - id: 10
+    name: "Cool Energy Generation"
+    register: 189
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "kWh"
+    description: "Cool mode energy consumption"
+
+  - id: 11
+    name: "Current error status"
+    register: 70
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "Alert"
+    description: "Current error status"
+
+  - id: 12
+    name: "Connection Health"
+    register: 0
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "Switch"
+    description: "Modbus connection health status"
+
+settings:
+  - id: 51
+    name: "System On/Off"
+    register: 0
+    functioncode: 3
+
+  - id: 52
+    name: "OperatingMode"
+    register: 4
+    functioncode: 3
+    type: 244
+    subtype: 0
+    switchtype: 18
+    options:
+      LevelActions: "|act1| |act2|"
+      LevelNames: "|Heat|Heat Tank|Tank|Cool Tank|Cool|Auto|Auto Tank|Auto Heat|Auto Heat Tank|Auto Cool|Auto Cool Tank"
+      LevelOffHidden: "true"
+      SelectorStyle: "1"
+
+  - id: 53
+    name: "Tank heater"
+    register: 34
+    functioncode: 3
+
+  - id: 54
+    name: "Tank set temp"
+    register: 33
+    functioncode: 3
+    description: "Tank set temperature point"
+    type: 242
+    subtype: 1
+
+  - id: 55
+    name: "Valve direction"
+    register: 85
+    functioncode: 3
+    description: "Valve direction"
+    type: 244
+    subtype: 62
+    switchtype: 18
+    options:
+      LevelActions: "|room| |tank|"
+      LevelNames: "|Room|Tank"
+      LevelOffHidden: "true"
+      SelectorStyle: "1"
