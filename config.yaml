@@ -250,7 +250,7 @@ settings:
     name: "Tank set temp"
     register: 33
     functioncode: 3
-    description: "Tank set temperature point"
+    description: "Tank water setpoint temperature (40-75°C). Tank must be ON (register 30) to allow changes."
     type: 242
     subtype: 1
 

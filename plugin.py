@@ -46,11 +46,55 @@ from time import sleep
 import yaml
 import os
 import json
+import time
 
-sleepInterval = 5 # sleep interval between modbus retry
+# Improved retry configuration
+INITIAL_RETRY_DELAY = 0.5  # Start with 500ms instead of 5s
+MAX_RETRY_DELAY = 5.0      # Cap at 5 seconds
+MAX_RETRIES = 3            # Maximum number of retry attempts
+MODBUS_TIMEOUT_RTU = 2.0   # Increased from 1s for RTU
+MODBUS_TIMEOUT_TCP = 3.0   # Increased from 2s for TCP
+
+# Legacy compatibility
+sleepInterval = INITIAL_RETRY_DELAY
 
 # for TCP modbus connection
 from pyModbusTCP.client import ModbusClient
+
+def retry_with_backoff(func, max_retries=MAX_RETRIES, operation_name="Modbus operation"):
+    """
+    Retry a function with exponential backoff
+
+    Args:
+        func: Function to retry (should be a lambda or callable)
+        max_retries: Maximum number of retry attempts
+        operation_name: Name of operation for logging
+
+    Returns:
+        Result of func() if successful
+
+    Raises:
+        Last exception if all retries fail
+    """
+    retry_delay = INITIAL_RETRY_DELAY
+    last_exception = None
+
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except Exception as e:
+            last_exception = e
+            if attempt < max_retries - 1:
+                Domoticz.Debug(f"{operation_name} failed (attempt {attempt + 1}/{max_retries}): {e}")
+                Domoticz.Debug(f"Retrying in {retry_delay:.1f}s...")
+                sleep(retry_delay)
+                # Exponential backoff: 0.5s → 1s → 2s → 4s (capped at MAX_RETRY_DELAY)
+                retry_delay = min(retry_delay * 2, MAX_RETRY_DELAY)
+            else:
+                Domoticz.Error(f"{operation_name} failed after {max_retries} attempts: {e}")
+
+    # If we get here, all retries failed
+    raise last_exception
 
 # Error code mapping from IntesisBox manual (page 20-21)
 ERROR_CODES = {
@@ -290,58 +334,48 @@ class Switch:
 
     def UpdateSettingValue(self,RS485):
         if RS485.MyMode == "minimalmodbus":
-            payload = RS485.read_register(self.register,functioncode=self.functioncode)
             if self.functioncode == 3 or self.functioncode == 4:
-                while True:
-                    try:
-                        payload = RS485.read_register(self.register,number_of_decimals=self.nod,functioncode=self.functioncode)                       
-                    except Exception as e:
-    #                    Domoticz.Log("Connection failure: "+str(e))
-                        Domoticz.Log("Modbus connection failure")
-                        Domoticz.Log("retry updating register in "+str(sleepInterval)+"s") 
-                        sleep(sleepInterval)
-                        continue
-                    break
+                payload = retry_with_backoff(
+                    lambda: RS485.read_register(self.register, number_of_decimals=self.nod, functioncode=self.functioncode),
+                    operation_name=f"Read setting '{self.name}' (reg {self.register})"
+                )
         elif RS485.MyMode == "pymodbus":
             if self.functioncode == 3:
-                 while True:
-                    try:
-                        registers = RS485.read_holding_registers(self.register, 1)
-                        if registers:
-                            # Use signed 16-bit integer for temperature and other signed values
-                            value = registers[0]
-                            # Convert to signed if needed
-                            if value > 32767:
-                                value -= 65536
-                            payload = value / 10 ** self.nod  # decimal places, divide by power of 10
-                        else:
-                            payload = 0
-                    except Exception as e:
-                        Domoticz.Log("pyModbus connection failure")
-                        Domoticz.Log("retry updating register in "+str(sleepInterval)+"s")
-                        sleep(sleepInterval)
-                        continue
-                    break
+                def read_holding():
+                    registers = RS485.read_holding_registers(self.register, 1)
+                    if registers:
+                        # Use signed 16-bit integer for temperature and other signed values
+                        value = registers[0]
+                        # Convert to signed if needed
+                        if value > 32767:
+                            value -= 65536
+                        return value / 10 ** self.nod  # decimal places, divide by power of 10
+                    else:
+                        return 0
+
+                payload = retry_with_backoff(
+                    read_holding,
+                    operation_name=f"Read setting '{self.name}' (reg {self.register})"
+                )
             elif self.functioncode == 4:
-                    while True:
-                        try:
-                            registers = RS485.read_input_registers(self.register, 1)
-                            if registers:
-                                value = registers[0]
-                                # Convert to signed if needed
-                                if value > 32767:
-                                    value -= 65536
-                                payload = value / 10 ** self.nod  # decimal places, divide by power of 10
-                            else:
-                                payload = 0
-                        except Exception as e:
-                            Domoticz.Log("pyModbus connection failure")
-                            Domoticz.Log("retry updating register in "+str(sleepInterval)+"s")
-                            sleep(sleepInterval)
-                            continue
-                        break
+                def read_input():
+                    registers = RS485.read_input_registers(self.register, 1)
+                    if registers:
+                        value = registers[0]
+                        # Convert to signed if needed
+                        if value > 32767:
+                            value -= 65536
+                        return value / 10 ** self.nod  # decimal places, divide by power of 10
+                    else:
+                        return 0
+
+                payload = retry_with_backoff(
+                    read_input,
+                    operation_name=f"Read setting '{self.name}' (reg {self.register})"
+                )
         else:
             Domoticz.Log("Unknown Modbus mode")
+            return
 
         data = payload
 # 	for devices with 'level' we need to do conversion on domoticz levels, like 0->10, 1->20, 2->30 etc        
@@ -370,33 +404,24 @@ class Switch:
                 value = 1
             elif command == "Off":
                 value = 0
-        if Parameters["Mode6"] == 'Debug':
-                Domoticz.Debug("Updating register: "+str(self.register)+" with command: "+str(command)+" and level: "+str(level))
+
+        Domoticz.Log(f"Writing to register {self.register} ('{self.name}'): command={command}, level={level}, value={value}")
 
         if RS485.MyMode == "minimalmodbus":
-            while True:
-                try:
-                    RS485.write_register(self.register,value,functioncode=self.functioncode)
-                except Exception as e:
-                    Domoticz.Log("Connection failure: "+str(e))
-                    Domoticz.Log("retry updating register in "+str(sleepInterval)+"s") 
-                    sleep(sleepInterval)
-                    continue
-                break
+            retry_with_backoff(
+                lambda: RS485.write_register(self.register, value, functioncode=self.functioncode),
+                operation_name=f"Write '{self.name}' (reg {self.register}) = {value}"
+            )
         elif RS485.MyMode == "pymodbus":
-             while True:
-                Domoticz.Debug("Updating register: "+str(self.register)+" with value: "+str(int(value)))
-                try:
-                    RS485.write_single_register(self.register,int(value))
-                except Exception as e:
-                    Domoticz.Log("Connection failure: "+str(e))
-                    Domoticz.Log("retry updating register in "+str(sleepInterval)+"s")  
-                    sleep(sleepInterval)
-                    continue
-                break
+            retry_with_backoff(
+                lambda: RS485.write_single_register(self.register, int(value)),
+                operation_name=f"Write '{self.name}' (reg {self.register}) = {int(value)}"
+            )
         else:
-            Domoticz.Log("Unknown Modbus mode")
-        Domoticz.Debug("Register: "+str(self.register)+" updated with value: "+str(value))
+            Domoticz.Error("Unknown Modbus mode")
+            return
+
+        Domoticz.Log(f"✓ Successfully wrote {value} to register {self.register} ('{self.name}')")
 
         
 
@@ -428,51 +453,39 @@ class Dev:
 
     def UpdateSensorValue(self,RS485):
         if RS485.MyMode == "minimalmodbus":
-                 if self.functioncode == 3 or self.functioncode == 4:
-                     while True:
-                       try:
-                           data = RS485.read_register(self.register,number_of_decimals=self.nod,functioncode=self.functioncode,signed=self.signed)
-                       except Exception as e:
-                           Domoticz.Log("Modbus connection failure: "+str(e))
-                           Domoticz.Log("retry updating register in "+str(sleepInterval)+"s") 
-                           sleep(sleepInterval)
-                           continue
-                       break        
-                 data = payload
-                 Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed. 
-                 if Parameters["Mode6"] == 'Debug':
-                     Domoticz.Log("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
+            if self.functioncode == 3 or self.functioncode == 4:
+                data = retry_with_backoff(
+                    lambda: RS485.read_register(self.register, number_of_decimals=self.nod, functioncode=self.functioncode, signed=self.signed),
+                    operation_name=f"Read sensor '{self.name}' (reg {self.register})"
+                )
+                Devices[self.ID].Update(0, str(data)+';'+str(data), True)
+                Domoticz.Debug(f"Device: {self.name} data={data} from register: {hex(self.register)}")
+
         elif RS485.MyMode == "pymodbus":
-                if self.functioncode == 3:
-                        while True:
-                            try:
-                                data  = RS485.read_holding_registers(self.register, 1)
-                            except Exception as e:
-                                Domoticz.Log("Modbus connection failure: "+str(e))
-                                Domoticz.Log("retry updating register in "+str(sleepInterval)+"s")
-                                sleep(sleepInterval)
-                                continue
-                            break
-                elif self.functioncode == 4:
-                        while True:
-                            try:
-                                data  = RS485.read_input_registers(self.register, 1)
-                            except Exception as e:
-                                Domoticz.Log("Modbus connection failure: "+str(e))
-                                Domoticz.Log("retry updating register in "+str(sleepInterval)+"s")
-                                sleep(sleepInterval)
-                                continue
-                            break
-                value = data
-                # convert value to signed int
-                if value[0] > 32767:
-                    value[0] -= 65536
-                data = value[0] / 10 ** self.nod  # decimal places, divide by power of 10
-                Devices[self.ID].Update(0,str(data)+';'+str(data),True) # force update, even if the voltage has no changed.
-                Domoticz.Debug("Device:"+self.name+" data="+str(data)+" from register: "+str(hex(self.register)) )
-        else:
-                Domoticz.Log("unknown ModBus mode")
+            if self.functioncode == 3:
+                data = retry_with_backoff(
+                    lambda: RS485.read_holding_registers(self.register, 1),
+                    operation_name=f"Read sensor '{self.name}' (reg {self.register})"
+                )
+            elif self.functioncode == 4:
+                data = retry_with_backoff(
+                    lambda: RS485.read_input_registers(self.register, 1),
+                    operation_name=f"Read sensor '{self.name}' (reg {self.register})"
+                )
+            else:
+                Domoticz.Error(f"Invalid function code {self.functioncode} for sensor '{self.name}'")
                 return
+
+            value = data
+            # convert value to signed int
+            if value[0] > 32767:
+                value[0] -= 65536
+            data = value[0] / 10 ** self.nod  # decimal places, divide by power of 10
+            Devices[self.ID].Update(0, str(data)+';'+str(data), True)
+            Domoticz.Debug(f"Device: {self.name} data={data} from register: {hex(self.register)}")
+        else:
+            Domoticz.Error("unknown ModBus mode")
+            return
 
 
 
@@ -511,18 +524,20 @@ class BasePlugin:
             self.RS485.serial.bytesize = 8
             self.RS485.serial.parity = minimalmodbus.serial.PARITY_NONE
             self.RS485.serial.stopbits = 1
-            self.RS485.serial.timeout = 1
+            self.RS485.serial.timeout = MODBUS_TIMEOUT_RTU  # Increased from 1s to 2s
             self.RS485.MyMode = 'minimalmodbus'
             self.RS485.mode = minimalmodbus.MODE_RTU
+            Domoticz.Log(f"RTU Modbus configured: {Parameters['SerialPort']}, baudrate={Parameters['Mode1']}, timeout={MODBUS_TIMEOUT_RTU}s")
         elif Parameters["Mode4"] == "TCP":
             Domoticz.Debug("TCP mode is not supported by minimalmodbus, so we use pymodbus instead")
             Domoticz.Debug("Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
-            try: 
+            try:
                 Domoticz.Debug("Using pymodbus, connecting to "+Parameters["Address"]+":"+Parameters["Port"]+" unit ID"+ str(DeviceID))
-                self.RS485 = ModbusClient(host=Parameters["Address"], port=int(Parameters["Port"]), unit_id=DeviceID, auto_open=True, auto_close=True, timeout=2)
+                self.RS485 = ModbusClient(host=Parameters["Address"], port=int(Parameters["Port"]), unit_id=DeviceID, auto_open=True, auto_close=True, timeout=MODBUS_TIMEOUT_TCP)  # Increased from 2s to 3s
                 self.RS485.MyMode = 'pymodbus'
-            except: 
-                Domoticz.Log("pyMmodbus connection failure")
+                Domoticz.Log(f"TCP Modbus configured: {Parameters['Address']}:{Parameters['Port']}, unit_id={DeviceID}, timeout={MODBUS_TIMEOUT_TCP}s")
+            except Exception as e:
+                Domoticz.Error(f"pyModbus connection failure: {e}")
         else:
             Domoticz.Log("Unknown mode: "+Parameters["Mode4"])
 
@@ -606,34 +621,23 @@ class BasePlugin:
         """Read error code from register 52"""
         try:
             if RS485.MyMode == "pymodbus":
-                while True:
-                    try:
-                        data = RS485.read_holding_registers(52, 1)
-                        if data:
-                            error_code = data[0]
-                            return error_code
-                        else:
-                            return 0
-                    except Exception as e:
-                        Domoticz.Log("Error reading error code from modbus: "+str(e))
-                        Domoticz.Log("Retry reading error code in "+str(sleepInterval)+"s")
-                        sleep(sleepInterval)
-                        continue
-                    break
+                data = retry_with_backoff(
+                    lambda: RS485.read_holding_registers(52, 1),
+                    operation_name="Read error code (reg 52)"
+                )
+                if data:
+                    return data[0]
+                else:
+                    return 0
             elif RS485.MyMode == "minimalmodbus":
-                while True:
-                    try:
-                        error_code = RS485.read_register(52, number_of_decimals=0, functioncode=3)
-                        return error_code
-                    except Exception as e:
-                        Domoticz.Log("Error reading error code from modbus: "+str(e))
-                        Domoticz.Log("Retry reading error code in "+str(sleepInterval)+"s")
-                        sleep(sleepInterval)
-                        continue
-                    break
+                error_code = retry_with_backoff(
+                    lambda: RS485.read_register(52, number_of_decimals=0, functioncode=3),
+                    operation_name="Read error code (reg 52)"
+                )
+                return error_code
             return 0
         except Exception as e:
-            Domoticz.Log(f"Failed to read error code: {e}")
+            Domoticz.Error(f"Failed to read error code after all retries: {e}")
             return 0
 
     def readHistoricalErrors(self, RS485):
