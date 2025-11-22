@@ -212,8 +212,8 @@ sensors:
     functioncode: 3
     decimals: 0
     signed: false
-    type: 113
-    subtype: 0
+    type: 243
+    subtype: 31
     description: "Total number of defrost cycles since installation"
     options:
       Custom: "1;cycles"
