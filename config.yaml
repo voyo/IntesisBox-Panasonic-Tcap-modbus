@@ -93,13 +93,13 @@ sensors:
     description: "Cool mode energy consumption"
 
   - id: 11
-    name: "Current error status"
-    register: 70
+    name: "Current error code"
+    register: 52
     functioncode: 3
     decimals: 0
     signed: false
-    typename: "Alert"
-    description: "Current error status"
+    typename: "Text"
+    description: "Current error code with description"
 
   - id: 12
     name: "Connection Health"
@@ -107,8 +107,17 @@ sensors:
     functioncode: 3
     decimals: 0
     signed: false
-    typename: "Switch"
+    typename: "Text"
     description: "Modbus connection health status"
+
+  - id: 13
+    name: "Current error status"
+    register: 70
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "Alert"
+    description: "Current error status (0=OK, 1=Error)"
 
 settings:
   - id: 51

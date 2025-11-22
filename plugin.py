@@ -53,6 +53,93 @@ from pyModbusTCP.client import ModbusClient
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadDecoder
 
+# Error code mapping from IntesisBox manual (page 20-21)
+ERROR_CODES = {
+    0: "No abnormality detected",
+    112: "H12: Indoor/Outdoor capacity unmatched",
+    115: "H15: Outdoor compressor temperature sensor abnormality",
+    120: "H20: Water pump abnormality",
+    123: "H23: Indoor refrigerant liquid temperature sensor abnormality",
+    127: "H27: Service valve error",
+    128: "H28: Abnormal solar sensor",
+    131: "H31: Abnormal swimming pool sensor",
+    136: "H36: Abnormal buffer tank sensor",
+    138: "H38: Brand code not match",
+    142: "H42: Compressor low pressure abnormality",
+    143: "H43: Abnormal Zone 1 sensor",
+    144: "H44: Abnormal Zone 2 sensor",
+    162: "H62: Water flow switch abnormality",
+    163: "H63: Refrigerant low pressure abnormality",
+    164: "H64: Refrigerant high pressure abnormality",
+    165: "H65: Deice circulation error",
+    167: "H67: Abnormal External Thermistor 1",
+    168: "H68: Abnormal External Thermistor 2",
+    170: "H70: Back-up heater OLP abnormality",
+    172: "H72: Tank sensor abnormal",
+    174: "H74: PCB communication error",
+    175: "H75: Low water temperature control",
+    176: "H76: Indoor - control panel communication abnormality",
+    190: "H90: Indoor/outdoor abnormal communication",
+    191: "H91: Tank heater OLP abnormality",
+    195: "H95: Indoor/Outdoor wrong connection",
+    198: "H98: Outdoor high pressure overload protection",
+    199: "H99: Indoor heat exchanger freeze prevention",
+    212: "F12: Pressure switch activate",
+    214: "F14: Outdoor compressor abnormal revolution",
+    215: "F15: Outdoor fan motor lock abnormality",
+    216: "F16: Total running current protection",
+    220: "F20: Outdoor compressor overheating protection",
+    222: "F22: IPM (power transistor) overheating protection",
+    223: "F23: Outdoor Direct Current (DC) peak detection",
+    224: "F24: Refrigeration cycle abnormality",
+    225: "F25: Cooling/Heating cycle changeover abnormality",
+    227: "F27: Pressure switch abnormality",
+    229: "F29: Low Discharge Superheat",
+    230: "F30: Water outlet sensor 2 abnormality",
+    232: "F32: Abnormal Internal Thermostat",
+    236: "F36: Outdoor air temperature sensor abnormality",
+    237: "F37: Indoor water inlet temperature sensor abnormality",
+    240: "F40: Outdoor discharge pipe temperature sensor abnormality",
+    241: "F41: PFC control",
+    242: "F42: Outdoor heat exchanger temperature sensor abnormality",
+    243: "F43: Outdoor defrost sensor abnormality",
+    245: "F45: Indoor water outlet temperature sensor abnormality",
+    246: "F46: Outdoor Current Transformer open circuit",
+    248: "F48: Outdoor EVA outlet temperature sensor abnormality",
+    249: "F49: Outdoor bypass outlet temperature sensor abnormality",
+    295: "F95: Cooling high pressure overload protection"
+}
+
+def getErrorDescription(error_code):
+    """Convert error code to human-readable description"""
+    return ERROR_CODES.get(error_code, f"Unknown error code: {error_code}")
+
+def addToErrorHistory(plugin, error_code):
+    """Add error code to error history list"""
+    import datetime
+    if error_code != 0 and error_code != plugin.lastErrorCode:
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        error_desc = getErrorDescription(error_code)
+        error_entry = f"{timestamp}: {error_desc}"
+
+        # Add to history
+        plugin.errorHistory.insert(0, error_entry)
+
+        # Keep only last N entries
+        if len(plugin.errorHistory) > plugin.maxErrorHistory:
+            plugin.errorHistory = plugin.errorHistory[:plugin.maxErrorHistory]
+
+        plugin.lastErrorCode = error_code
+        Domoticz.Log(f"Error logged: {error_entry}")
+
+def getErrorHistoryString(plugin):
+    """Get error history as formatted string"""
+    if not plugin.errorHistory:
+        return "No previous errors"
+
+    history_str = "Recent errors:\n" + "\n".join(plugin.errorHistory[:5])
+    return history_str
+
 def loadConfig(configPath):
     """Load configuration from YAML file"""
     try:
@@ -300,6 +387,10 @@ class BasePlugin:
         self.runInterval = 1
         self.RS485 = ""
         self.connectionHealthy = True
+        self.errorHistory = []  # Store error history (max 10 entries)
+        self.maxErrorHistory = 10
+        self.currentErrorCode = 0
+        self.lastErrorCode = 0
         return
 
     def onStart(self):
@@ -354,8 +445,9 @@ class BasePlugin:
                      Dev(8,"Tank Energy Generation",0,187,functioncode=3,TypeName="kWh",Description="Tank mode energy consumption"),
                      Dev(9,"Heat Energy Generation",0,188,functioncode=3,TypeName="kWh",Description="Heat mode energy consumption"),
                      Dev(10,"Cool Energy Generation",0,189,functioncode=3,TypeName="kWh",Description="Cool mode energy consumption"),
-                     Dev(11,"Current error status",0,70,functioncode=3,TypeName="Alert",Description="Current error status"),
-                     Dev(12,"Connection Health",0,0,functioncode=3,TypeName="Switch",Description="Modbus connection health status")
+                     Dev(11,"Current error code",0,52,functioncode=3,TypeName="Text",Description="Current error code with description"),
+                     Dev(12,"Connection Health",0,0,functioncode=3,TypeName="Text",Description="Modbus connection health status"),
+                     Dev(13,"Current error status",0,70,functioncode=3,TypeName="Alert",Description="Current error status (0=OK, 1=Error)")
                 ]
 
             self.settings = [
@@ -400,31 +492,93 @@ class BasePlugin:
     def onStop(self):
         Domoticz.Log("Panasonic-IntesisBox Modbus plugin stop")
 
+    def readErrorCode(self, RS485):
+        """Read error code from register 52"""
+        try:
+            if RS485.MyMode == "pymodbus":
+                while True:
+                    try:
+                        data = RS485.read_holding_registers(52, 1)
+                        if data:
+                            error_code = data[0]
+                            return error_code
+                        else:
+                            return 0
+                    except Exception as e:
+                        Domoticz.Log("Error reading error code from modbus: "+str(e))
+                        Domoticz.Log("Retry reading error code in "+str(sleepInterval)+"s")
+                        sleep(sleepInterval)
+                        continue
+                    break
+            elif RS485.MyMode == "minimalmodbus":
+                while True:
+                    try:
+                        error_code = RS485.read_register(52, number_of_decimals=0, functioncode=3)
+                        return error_code
+                    except Exception as e:
+                        Domoticz.Log("Error reading error code from modbus: "+str(e))
+                        Domoticz.Log("Retry reading error code in "+str(sleepInterval)+"s")
+                        sleep(sleepInterval)
+                        continue
+                    break
+            return 0
+        except Exception as e:
+            Domoticz.Log(f"Failed to read error code: {e}")
+            return 0
+
     def onHeartbeat(self):
         self.runInterval -= 1
         if self.runInterval <= 0:
             anyFailure = False
+            errorCode = 0
+
             for i in self.sensors:
                 # Skip the connection health sensor itself
                 if i.ID == 12:
                     continue
+
                 try:
-                         # Get data from modbus
-                        Domoticz.Debug("Getting data from modbus for device:"+i.name+" ID:"+str(i.ID))
+                    # Get data from modbus
+                    Domoticz.Debug("Getting data from modbus for device:"+i.name+" ID:"+str(i.ID))
+
+                    # Special handling for error code sensor (ID 11 - register 52)
+                    if i.ID == 11:
+                        errorCode = self.readErrorCode(self.RS485)
+                        self.currentErrorCode = errorCode
+
+                        # Add to error history if new error
+                        if errorCode != 0:
+                            addToErrorHistory(self, errorCode)
+
+                        # Display current error with description and history
+                        error_desc = getErrorDescription(errorCode)
+                        display_text = f"Current: {error_desc}"
+
+                        # Add recent error history
+                        if self.errorHistory:
+                            history_preview = "\nPrevious: " + "; ".join(self.errorHistory[:3])
+                            display_text += history_preview
+
+                        Devices[i.ID].Update(nValue=0, sValue=display_text)
+                        Domoticz.Debug(f"Error code sensor updated: {display_text}")
+                    else:
+                        # Normal sensor update
                         self.sensors[i.ID-1].UpdateSensorValue(self.RS485)
+
                 except Exception as e:
-                        Domoticz.Log("Update failure: "+str(e))
-                        anyFailure = True
+                    Domoticz.Log("Update failure: "+str(e))
+                    anyFailure = True
                 else:
+                    if i.ID != 11:  # Already logged for error sensor
                         Domoticz.Debug("in HeartBeat "+i.name+": "+format(i.value))
 
-            # Update connection health status
+            # Update connection health status (ID 12) - now as Text sensor
             if anyFailure:
                 self.connectionHealthy = False
-                Devices[12].Update(nValue=0, sValue="Off")
+                Devices[12].Update(nValue=0, sValue="Disconnected")
             else:
                 self.connectionHealthy = True
-                Devices[12].Update(nValue=1, sValue="On")
+                Devices[12].Update(nValue=1, sValue="Connected")
 
             self.runInterval = int(Parameters["Mode3"])
 
