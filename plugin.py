@@ -213,7 +213,7 @@ def calculateCOP(energy_generated, energy_consumed):
 def loadConfig(configPath):
     """Load configuration from YAML file"""
     try:
-        with open(configPath, 'r') as f:
+        with open(configPath, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
         return config
     except Exception as e:
@@ -221,15 +221,15 @@ def loadConfig(configPath):
         return None
 
 class Switch:
-    def __init__(self,ID,name,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0):
+    def __init__(self,ID,name,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0, nod: int = 0):
         self.ID = ID
         self.name = name
         self.register = register
         self.functioncode = functioncode
         self.Used=Used
-        self.nod = 0
+        self.nod = nod
         self.value = 0
-        self.options = options if options is not None else None        
+        self.options = options if options is not None else None
         self.TypeName = TypeName if TypeName is not None else ""
         self.Type = Type
         self.SubType = SubType
@@ -575,7 +575,11 @@ class BasePlugin:
                     functioncode=sensor.get('functioncode', 3),
                     TypeName=sensor.get('typename', ''),
                     Description=sensor.get('description', ''),
-                    signed=sensor.get('signed', False)
+                    signed=sensor.get('signed', False),
+                    Type=sensor.get('type', 0),
+                    SubType=sensor.get('subtype', 0),
+                    SwitchType=sensor.get('switchtype', 0),
+                    options=sensor.get('options', None)
                 ))
 
             # Build settings from config
@@ -590,7 +594,8 @@ class BasePlugin:
                     Type=setting.get('type', 0),
                     SubType=setting.get('subtype', 0),
                     SwitchType=setting.get('switchtype', 0),
-                    options=setting.get('options', None)
+                    options=setting.get('options', None),
+                    nod=setting.get('decimals', 0)
                 ))
 
 

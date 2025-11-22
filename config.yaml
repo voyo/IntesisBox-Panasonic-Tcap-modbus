@@ -154,8 +154,11 @@ sensors:
     functioncode: 3
     decimals: 2
     signed: false
-    typename: "Custom"
+    type: 243
+    subtype: 31
     description: "Heat mode Coefficient of Performance (Energy Generated / Energy Consumed)"
+    options:
+      Custom: "1;COP"
 
   - id: 18
     name: "Cool COP"
@@ -163,8 +166,11 @@ sensors:
     functioncode: 3
     decimals: 2
     signed: false
-    typename: "Custom"
+    type: 243
+    subtype: 31
     description: "Cool mode Coefficient of Performance (Energy Generated / Energy Consumed)"
+    options:
+      Custom: "1;COP"
 
   - id: 19
     name: "Tank COP"
@@ -172,8 +178,11 @@ sensors:
     functioncode: 3
     decimals: 2
     signed: false
-    typename: "Custom"
+    type: 243
+    subtype: 31
     description: "Tank mode Coefficient of Performance (Energy Generated / Energy Consumed)"
+    options:
+      Custom: "1;COP"
 
   - id: 20
     name: "Overall COP"
@@ -181,8 +190,11 @@ sensors:
     functioncode: 3
     decimals: 2
     signed: false
-    typename: "Custom"
+    type: 243
+    subtype: 31
     description: "Overall system Coefficient of Performance"
+    options:
+      Custom: "1;COP"
 
 settings:
   - id: 51
