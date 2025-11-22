@@ -196,6 +196,37 @@ sensors:
     options:
       Custom: "1;COP"
 
+  # Defrost Cycle Monitoring
+  - id: 21
+    name: "Defrost Status"
+    register: 0
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "Text"
+    description: "Current defrost status (calculated: heat consumption > 0 AND heat generation = 0)"
+
+  - id: 22
+    name: "Defrost Cycle Count"
+    register: 0
+    functioncode: 3
+    decimals: 0
+    signed: false
+    type: 113
+    subtype: 0
+    description: "Total number of defrost cycles since installation"
+    options:
+      Custom: "1;cycles"
+
+  - id: 23
+    name: "Defrost Statistics"
+    register: 0
+    functioncode: 3
+    decimals: 0
+    signed: false
+    typename: "Text"
+    description: "Defrost cycle statistics: total cycles, last duration, average duration, total time"
+
 settings:
   - id: 51
     name: "System On/Off"

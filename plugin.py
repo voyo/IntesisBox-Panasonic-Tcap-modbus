@@ -236,6 +236,90 @@ def getZoneTempSettingModeText(mode_value):
     }
     return modes.get(mode_value, f"Unknown ({mode_value})")
 
+def saveDefrostHistory(plugin):
+    """Save defrost history to file"""
+    try:
+        historyPath = os.path.join(os.path.dirname(__file__), 'defrost_history.json')
+        with open(historyPath, 'w') as f:
+            json.dump({
+                'defrostHistory': plugin.defrostHistory,
+                'defrostCycleCount': plugin.defrostCycleCount,
+                'totalDefrostDuration': plugin.totalDefrostDuration,
+                'lastDefrostDuration': plugin.lastDefrostDuration
+            }, f, indent=2)
+    except Exception as e:
+        Domoticz.Error(f"Failed to save defrost history: {e}")
+
+def loadDefrostHistory(plugin):
+    """Load defrost history from file"""
+    try:
+        historyPath = os.path.join(os.path.dirname(__file__), 'defrost_history.json')
+        if os.path.exists(historyPath):
+            with open(historyPath, 'r') as f:
+                data = json.load(f)
+                plugin.defrostHistory = data.get('defrostHistory', [])
+                plugin.defrostCycleCount = data.get('defrostCycleCount', 0)
+                plugin.totalDefrostDuration = data.get('totalDefrostDuration', 0)
+                plugin.lastDefrostDuration = data.get('lastDefrostDuration', 0)
+                Domoticz.Log(f"Loaded {len(plugin.defrostHistory)} defrost history entries, {plugin.defrostCycleCount} total cycles")
+        else:
+            Domoticz.Log("No defrost history file found, starting fresh")
+    except Exception as e:
+        Domoticz.Error(f"Failed to load defrost history: {e}")
+        plugin.defrostHistory = []
+        plugin.defrostCycleCount = 0
+        plugin.totalDefrostDuration = 0
+        plugin.lastDefrostDuration = 0
+
+def detectDefrost(plugin):
+    """
+    Detect if the heat pump is in defrost mode.
+    Defrost is occurring when heat energy is being consumed but not generated.
+    This means the compressor is working but the heat is being used to defrost the outdoor coil.
+    """
+    # Defrost condition: heat energy consumption > 0 AND heat energy generation == 0
+    isDefrosting = plugin.heatEnergyConsumed > 0 and plugin.heatEnergyGenerated == 0
+
+    import datetime
+    currentTime = datetime.datetime.now()
+
+    # Defrost cycle started
+    if isDefrosting and not plugin.isDefrosting:
+        plugin.isDefrosting = True
+        plugin.defrostStartTime = currentTime
+        plugin.defrostCycleCount += 1
+        timestamp = currentTime.strftime("%Y-%m-%d %H:%M:%S")
+        Domoticz.Log(f"🔵 DEFROST STARTED at {timestamp} (Cycle #{plugin.defrostCycleCount})")
+
+    # Defrost cycle ended
+    elif not isDefrosting and plugin.isDefrosting:
+        plugin.isDefrosting = False
+        if plugin.defrostStartTime:
+            duration = (currentTime - plugin.defrostStartTime).total_seconds()
+            plugin.lastDefrostDuration = duration
+            plugin.totalDefrostDuration += duration
+            timestamp = currentTime.strftime("%Y-%m-%d %H:%M:%S")
+
+            # Add to history
+            defrost_entry = {
+                'start': plugin.defrostStartTime.strftime("%Y-%m-%d %H:%M:%S"),
+                'end': timestamp,
+                'duration': duration
+            }
+            plugin.defrostHistory.insert(0, defrost_entry)
+
+            # Keep only recent entries
+            if len(plugin.defrostHistory) > plugin.maxDefrostHistory:
+                plugin.defrostHistory = plugin.defrostHistory[:plugin.maxDefrostHistory]
+
+            Domoticz.Log(f"🟢 DEFROST ENDED at {timestamp} (Duration: {duration:.0f}s / {duration/60:.1f}min)")
+
+            # Save history
+            saveDefrostHistory(plugin)
+            plugin.defrostStartTime = None
+
+    return isDefrosting
+
 def calculateCOP(energy_generated, energy_consumed):
     """Calculate Coefficient of Performance (COP)
 
@@ -264,34 +348,88 @@ def loadConfig(configPath):
         Domoticz.Error("Failed to load config file: "+str(e))
         return None
 
-class Switch:
-    def __init__(self,ID,name,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0, nod: int = 0):
+class ModbusDevice:
+    """Base class for Modbus devices with common functionality (DRY principle)"""
+    def __init__(self, ID, name, register, functioncode=3, nod=0, options=None, Used=1,
+                 Description=None, TypeName=None, Type=0, SubType=0, SwitchType=0, signed=False):
         self.ID = ID
         self.name = name
         self.register = register
         self.functioncode = functioncode
-        self.Used=Used
         self.nod = nod
         self.value = 0
+        self.signed = signed
         self.options = options if options is not None else None
         self.TypeName = TypeName if TypeName is not None else ""
         self.Type = Type
         self.SubType = SubType
         self.SwitchType = SwitchType
+        self.Used = Used
         self.Description = Description if Description is not None else ""
 
-        if self.ID not in Devices:
-            Domoticz.Log("Registering device: "+self.name+" "+str(self.ID))
-            if self.TypeName != "":
-                Domoticz.Log("Adding device: "+self.name+" "+str(self.ID)+" "+self.TypeName+"  Description: "+str(self.Description))
-                Domoticz.Device(Name=self.name, Unit=self.ID, TypeName=self.TypeName,Used=self.Used,Options=self.options,Description=self.Description).Create()
-            else:
-                Domoticz.Device(Name=self.name, Unit=self.ID,Type=self.Type, Subtype=self.SubType, Switchtype=self.SwitchType, Used=self.Used,Options=self.options,Description=self.Description).Create()
-                Domoticz.Log("Adding device: name "+ self.name+", Type: "+str(self.Type)+" SubType: "+str(self.SubType)+" SwitchType: "+str(self.SwitchType))
+        self._create_device()
 
+    def _create_device(self):
+        """Create device in Domoticz if it doesn't exist"""
+        if self.ID not in Devices:
+            Domoticz.Log(f"Registering device: {self.name} {self.ID}")
+            if self.TypeName != "":
+                Domoticz.Log(f"Adding device: {self.name} {self.ID} {self.TypeName} Description: {self.Description}")
+                Domoticz.Device(Name=self.name, Unit=self.ID, TypeName=self.TypeName,
+                              Used=self.Used, Options=self.options, Description=self.Description).Create()
+            else:
+                Domoticz.Device(Name=self.name, Unit=self.ID, Type=self.Type, Subtype=self.SubType,
+                              Switchtype=self.SwitchType, Used=self.Used, Options=self.options,
+                              Description=self.Description).Create()
+                Domoticz.Log(f"Adding device: name {self.name}, Type: {self.Type} SubType: {self.SubType} SwitchType: {self.SwitchType}")
         else:
-            msg = "Device already exists: "+self.name+" "+str(self.ID)
-            Domoticz.Log(msg)
+            Domoticz.Log(f"Device already exists: {self.name} {self.ID}")
+
+    def _read_modbus_register(self, RS485):
+        """Read value from modbus register - common implementation"""
+        if RS485.MyMode == "minimalmodbus":
+            if self.functioncode in [3, 4]:
+                payload = retry_with_backoff(
+                    lambda: RS485.read_register(self.register, number_of_decimals=self.nod,
+                                               functioncode=self.functioncode, signed=self.signed),
+                    operation_name=f"Read '{self.name}' (reg {self.register})"
+                )
+                return payload
+
+        elif RS485.MyMode == "pymodbus":
+            if self.functioncode == 3:
+                def read_holding():
+                    registers = RS485.read_holding_registers(self.register, 1)
+                    if registers:
+                        value = registers[0]
+                        if value > 32767 and self.signed:
+                            value -= 65536
+                        return value / 10 ** self.nod
+                    return 0
+                return retry_with_backoff(read_holding, operation_name=f"Read '{self.name}' (reg {self.register})")
+
+            elif self.functioncode == 4:
+                def read_input():
+                    registers = RS485.read_input_registers(self.register, 1)
+                    if registers:
+                        value = registers[0]
+                        if value > 32767 and self.signed:
+                            value -= 65536
+                        return value / 10 ** self.nod
+                    return 0
+                return retry_with_backoff(read_input, operation_name=f"Read '{self.name}' (reg {self.register})")
+
+        Domoticz.Error("Unknown Modbus mode or function code")
+        return 0
+
+
+class Switch(ModbusDevice):
+    """Modbus device with write capability (settings/controls)"""
+    def __init__(self, ID, name, register, functioncode=3, options=None, Used=1,
+                 Description=None, TypeName=None, Type=0, SubType=0, SwitchType=0, nod=0):
+        # Call parent constructor - eliminates duplication
+        super().__init__(ID, name, register, functioncode, nod, options, Used,
+                        Description, TypeName, Type, SubType, SwitchType)
 
     def LevelValueConversion2Data(self,command,level):
         Domoticz.Debug("command2data, command:"+str(command)+" register: "+str(self.register)+" level: "+str(level) )
@@ -332,52 +470,10 @@ class Switch:
 
 
 
-    def UpdateSettingValue(self,RS485):
-        if RS485.MyMode == "minimalmodbus":
-            if self.functioncode == 3 or self.functioncode == 4:
-                payload = retry_with_backoff(
-                    lambda: RS485.read_register(self.register, number_of_decimals=self.nod, functioncode=self.functioncode),
-                    operation_name=f"Read setting '{self.name}' (reg {self.register})"
-                )
-        elif RS485.MyMode == "pymodbus":
-            if self.functioncode == 3:
-                def read_holding():
-                    registers = RS485.read_holding_registers(self.register, 1)
-                    if registers:
-                        # Use signed 16-bit integer for temperature and other signed values
-                        value = registers[0]
-                        # Convert to signed if needed
-                        if value > 32767:
-                            value -= 65536
-                        return value / 10 ** self.nod  # decimal places, divide by power of 10
-                    else:
-                        return 0
-
-                payload = retry_with_backoff(
-                    read_holding,
-                    operation_name=f"Read setting '{self.name}' (reg {self.register})"
-                )
-            elif self.functioncode == 4:
-                def read_input():
-                    registers = RS485.read_input_registers(self.register, 1)
-                    if registers:
-                        value = registers[0]
-                        # Convert to signed if needed
-                        if value > 32767:
-                            value -= 65536
-                        return value / 10 ** self.nod  # decimal places, divide by power of 10
-                    else:
-                        return 0
-
-                payload = retry_with_backoff(
-                    read_input,
-                    operation_name=f"Read setting '{self.name}' (reg {self.register})"
-                )
-        else:
-            Domoticz.Log("Unknown Modbus mode")
-            return
-
-        data = payload
+    def UpdateSettingValue(self, RS485):
+        """Read setting value from Modbus and update Domoticz device"""
+        # Use common read method from parent class (DRY)
+        data = self._read_modbus_register(RS485)
 # 	for devices with 'level' we need to do conversion on domoticz levels, like 0->10, 1->20, 2->30 etc        
         value = self.LevelValueConversion2Level(data)
         self.value = value
@@ -425,67 +521,21 @@ class Switch:
 
         
 
-class Dev:
-    def __init__(self,ID,name,nod,register,functioncode: int = 3,options=None, Used: int = 1, Description=None, signed: bool = False, TypeName=None,Type: int = 0, SubType:int = 0 , SwitchType:int = 0  ):
-        self.ID = ID
-        self.name = name
-        self.TypeName = TypeName if TypeName is not None else ""
-        self.Type = Type
-        self.SubType = SubType
-        self.SwitchType = SwitchType
-        self.nod = nod
-        self.value = 0
-        self.signed = signed 
-        self.register = register
-        self.functioncode = functioncode
-        self.options = options if options is not None else None
-        self.Used=Used
-        self.Description = Description if Description is not None else ""
-        if self.ID not in Devices:
-            Domoticz.Log("Registering device: "+self.name+" "+str(self.ID)+" "+self.TypeName+"  Description: "+str(self.Description))
-            if self.TypeName != "":
-                Domoticz.Log("Adding device: "+self.name+" "+str(self.ID)+" "+self.TypeName+"  Description: "+str(self.Description))
-                Domoticz.Device(Name=self.name, Unit=self.ID, TypeName=self.TypeName,Used=self.Used,Options=self.options,Description=self.Description).Create()
-            else:
-                Domoticz.Device(Name=self.name, Unit=self.ID,Type=self.Type, Subtype=self.SubType, Switchtype=self.SwitchType, Used=self.Used,Options=self.options,Description=self.Description).Create()
-                Domoticz.Log("Adding device: name"+ self.name+", Type: "+str(self.Type)+" SubType: "+str(self.SubType)+" SwitchType: "+str(self.SwitchType))
+class Dev(ModbusDevice):
+    """Modbus device for read-only sensors"""
+    def __init__(self, ID, name, nod, register, functioncode=3, options=None, Used=1,
+                 Description=None, signed=False, TypeName=None, Type=0, SubType=0, SwitchType=0):
+        # Call parent constructor - eliminates duplication
+        super().__init__(ID, name, register, functioncode, nod, options, Used,
+                        Description, TypeName, Type, SubType, SwitchType, signed)
                       
 
-    def UpdateSensorValue(self,RS485):
-        if RS485.MyMode == "minimalmodbus":
-            if self.functioncode == 3 or self.functioncode == 4:
-                data = retry_with_backoff(
-                    lambda: RS485.read_register(self.register, number_of_decimals=self.nod, functioncode=self.functioncode, signed=self.signed),
-                    operation_name=f"Read sensor '{self.name}' (reg {self.register})"
-                )
-                Devices[self.ID].Update(0, str(data)+';'+str(data), True)
-                Domoticz.Debug(f"Device: {self.name} data={data} from register: {hex(self.register)}")
-
-        elif RS485.MyMode == "pymodbus":
-            if self.functioncode == 3:
-                data = retry_with_backoff(
-                    lambda: RS485.read_holding_registers(self.register, 1),
-                    operation_name=f"Read sensor '{self.name}' (reg {self.register})"
-                )
-            elif self.functioncode == 4:
-                data = retry_with_backoff(
-                    lambda: RS485.read_input_registers(self.register, 1),
-                    operation_name=f"Read sensor '{self.name}' (reg {self.register})"
-                )
-            else:
-                Domoticz.Error(f"Invalid function code {self.functioncode} for sensor '{self.name}'")
-                return
-
-            value = data
-            # convert value to signed int
-            if value[0] > 32767:
-                value[0] -= 65536
-            data = value[0] / 10 ** self.nod  # decimal places, divide by power of 10
-            Devices[self.ID].Update(0, str(data)+';'+str(data), True)
-            Domoticz.Debug(f"Device: {self.name} data={data} from register: {hex(self.register)}")
-        else:
-            Domoticz.Error("unknown ModBus mode")
-            return
+    def UpdateSensorValue(self, RS485):
+        """Read sensor value from Modbus and update Domoticz device"""
+        # Use common read method from parent class (DRY)
+        data = self._read_modbus_register(RS485)
+        Devices[self.ID].Update(0, str(data)+';'+str(data), True)
+        Domoticz.Debug(f"Device: {self.name} data={data} from register: {hex(self.register)}")
 
 
 
@@ -505,6 +555,14 @@ class BasePlugin:
         self.coolEnergyConsumed = 0
         self.tankEnergyGenerated = 0
         self.tankEnergyConsumed = 0
+        # Defrost cycle monitoring
+        self.isDefrosting = False
+        self.defrostStartTime = None
+        self.defrostCycleCount = 0
+        self.totalDefrostDuration = 0  # in seconds
+        self.lastDefrostDuration = 0
+        self.defrostHistory = []  # Store recent defrost events
+        self.maxDefrostHistory = 20
         return
 
     def onStart(self):
@@ -515,6 +573,9 @@ class BasePlugin:
 
         # Load error history from file
         loadErrorHistory(self)
+
+        # Load defrost history from file
+        loadDefrostHistory(self)
 
         DeviceID=int(Parameters["Mode2"])
         if Parameters["Mode4"] == "RTU" or Parameters["Mode4"] == "ASCII":
@@ -772,6 +833,11 @@ class BasePlugin:
                         # Skip COP sensors for now, will update them later
                         pass
 
+                    # Defrost sensors (ID 21-23) - will be calculated after energy values are read
+                    elif i.ID in [21, 22, 23]:
+                        # Skip defrost sensors for now, will update them later
+                        pass
+
                     else:
                         # Normal sensor update
                         self.sensors[i.ID-1].UpdateSensorValue(self.RS485)
@@ -833,6 +899,42 @@ class BasePlugin:
 
             except Exception as e:
                 Domoticz.Log(f"Failed to calculate COP: {e}")
+
+            # Detect and track defrost cycles
+            try:
+                isDefrosting = detectDefrost(self)
+
+                # Update Defrost Status sensor (ID 21)
+                if 21 in Devices:
+                    if isDefrosting:
+                        Devices[21].Update(nValue=1, sValue="Defrosting")
+                        Domoticz.Debug("Defrost status: ACTIVE")
+                    else:
+                        Devices[21].Update(nValue=0, sValue="Normal")
+                        Domoticz.Debug("Defrost status: Normal")
+
+                # Update Defrost Cycle Count sensor (ID 22)
+                if 22 in Devices:
+                    Devices[22].Update(nValue=0, sValue=str(self.defrostCycleCount))
+                    Domoticz.Debug(f"Defrost cycle count: {self.defrostCycleCount}")
+
+                # Update Defrost Statistics sensor (ID 23)
+                if 23 in Devices:
+                    # Calculate average defrost duration
+                    avgDuration = 0
+                    if self.defrostCycleCount > 0 and self.totalDefrostDuration > 0:
+                        avgDuration = self.totalDefrostDuration / self.defrostCycleCount
+
+                    stats_text = f"Total cycles: {self.defrostCycleCount} | "
+                    stats_text += f"Last: {self.lastDefrostDuration/60:.1f}min | "
+                    stats_text += f"Avg: {avgDuration/60:.1f}min | "
+                    stats_text += f"Total: {self.totalDefrostDuration/3600:.1f}h"
+
+                    Devices[23].Update(nValue=0, sValue=stats_text)
+                    Domoticz.Debug(f"Defrost statistics: {stats_text}")
+
+            except Exception as e:
+                Domoticz.Log(f"Failed to update defrost monitoring: {e}")
 
             # Update connection health status (ID 12) - now as Text sensor
             if anyFailure:
