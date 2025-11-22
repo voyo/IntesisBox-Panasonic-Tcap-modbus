@@ -294,6 +294,7 @@ def detectDefrost(plugin):
     # Defrost cycle ended
     elif not isDefrosting and plugin.isDefrosting:
         plugin.isDefrosting = False
+        plugin.defrostEndTime = currentTime  # Track when defrost ended for COP exclusion
         if plugin.defrostStartTime:
             duration = (currentTime - plugin.defrostStartTime).total_seconds()
             plugin.lastDefrostDuration = duration
@@ -320,23 +321,81 @@ def detectDefrost(plugin):
 
     return isDefrosting
 
-def calculateCOP(energy_generated, energy_consumed):
-    """Calculate Coefficient of Performance (COP)
+def calculateCOP(energy_generated, energy_consumed, min_power_threshold=0.5):
+    """Calculate Coefficient of Performance (COP) with hybrid approach
 
     COP = Energy Generated / Energy Consumed
     Higher COP means better efficiency
     Typical values: 2.5 - 5.0 for heat pumps
-    """
-    if energy_consumed is None or energy_consumed <= 0:
-        return 0.0
-    if energy_generated is None or energy_generated < 0:
-        return 0.0
 
+    Hybrid approach to prevent unrealistic spikes:
+    1. Minimum power threshold - don't calculate if consumed power is too low
+    2. Upper limit enforcement - cap at 10.0 (realistic maximum for heat pumps)
+    3. Returns None for invalid/unrealistic values
+
+    Args:
+        energy_generated: Generated energy in kW
+        energy_consumed: Consumed energy in kW
+        min_power_threshold: Minimum consumed power to calculate COP (default 0.5 kW)
+
+    Returns:
+        COP value (float) or None if calculation is invalid/unrealistic
+    """
+    # Validate inputs
+    if energy_consumed is None or energy_generated is None:
+        return None
+
+    if energy_consumed < 0 or energy_generated < 0:
+        return None
+
+    # Filter 1: Minimum power threshold
+    # Don't calculate COP when consumed power is very low (avoids division by tiny numbers)
+    if energy_consumed < min_power_threshold:
+        Domoticz.Debug(f"COP not calculated: consumed power too low ({energy_consumed:.2f}W < {min_power_threshold}W threshold)")
+        return None
+
+    # Calculate instantaneous COP
     cop = energy_generated / energy_consumed
-    # Sanity check - COP should typically be between 0 and 10
-    if cop > 10:
-        Domoticz.Debug(f"COP value seems unusually high: {cop:.2f} (Generated: {energy_generated}, Consumed: {energy_consumed})")
+
+    # Filter 2: Upper limit enforcement
+    # Heat pumps realistically can't exceed COP of 10, values above indicate measurement issues
+    if cop > 10.0:
+        Domoticz.Debug(f"COP capped at 10.0 (calculated {cop:.2f} - likely transient spike. Generated: {energy_generated}W, Consumed: {energy_consumed}W)")
+        return None  # Return None to exclude this spike from moving average
+
+    # Filter 3: Zero generation check (can happen during defrost or startup)
+    if energy_generated == 0:
+        return None
+
     return round(cop, 2)
+
+def updateCOPMovingAverage(copHistory, newCOP, historySize):
+    """
+    Update COP history with new value and calculate moving average
+
+    Args:
+        copHistory: List of recent COP values
+        newCOP: New COP value (can be None if invalid)
+        historySize: Maximum number of values to keep in history
+
+    Returns:
+        Tuple of (averaged_cop, updated_history)
+        - averaged_cop: Moving average of valid COP values, or None if no valid values
+        - updated_history: Updated history list
+    """
+    # Only add valid COP values to history
+    if newCOP is not None:
+        copHistory.append(newCOP)
+        # Keep only last N values
+        if len(copHistory) > historySize:
+            copHistory = copHistory[-historySize:]
+
+    # Calculate moving average from history
+    if len(copHistory) > 0:
+        avgCOP = sum(copHistory) / len(copHistory)
+        return round(avgCOP, 2), copHistory
+    else:
+        return None, copHistory
 
 def loadConfig(configPath):
     """Load configuration from YAML file"""
@@ -576,11 +635,18 @@ class BasePlugin:
         # Defrost cycle monitoring
         self.isDefrosting = False
         self.defrostStartTime = None
+        self.defrostEndTime = None  # Track when defrost ended
         self.defrostCycleCount = 0
         self.totalDefrostDuration = 0  # in seconds
         self.lastDefrostDuration = 0
         self.defrostHistory = []  # Store recent defrost events
         self.maxDefrostHistory = 20
+        # COP moving average (to smooth out spikes and transients)
+        self.heatCOPHistory = []  # Last N valid COP values
+        self.coolCOPHistory = []
+        self.tankCOPHistory = []
+        self.overallCOPHistory = []
+        self.copHistorySize = 5  # Number of readings to average (5 readings = smooth but responsive)
         return
 
     def onStart(self):
@@ -881,39 +947,79 @@ class BasePlugin:
                     if i.ID != 11:  # Already logged for error sensor
                         Domoticz.Debug("in HeartBeat "+i.name+": "+format(i.value))
 
-            # Calculate and update COP sensors (ID 17-20)
+            # Calculate and update COP sensors (ID 17-20) with hybrid approach
             try:
-                # Heat COP (ID 17)
-                heatCOP = calculateCOP(self.heatEnergyGenerated, self.heatEnergyConsumed)
-                if 17 in Devices:
-                    Devices[17].Update(nValue=0, sValue=str(heatCOP))
-                    Domoticz.Debug(f"Heat COP updated: {heatCOP} (Generated: {self.heatEnergyGenerated}W, Consumed: {self.heatEnergyConsumed}W)")
+                import datetime
+                currentTime = datetime.datetime.now()
 
-                # Cool COP (ID 18)
-                coolCOP = calculateCOP(self.coolEnergyGenerated, self.coolEnergyConsumed)
-                if 18 in Devices:
-                    Devices[18].Update(nValue=0, sValue=str(coolCOP))
-                    Domoticz.Debug(f"Cool COP updated: {coolCOP} (Generated: {self.coolEnergyGenerated}W, Consumed: {self.coolEnergyConsumed}W)")
+                # Check if we should skip COP calculation (during or shortly after defrost)
+                skipCOPUpdate = False
+                skipReason = ""
 
-                # Tank COP (ID 19)
-                tankCOP = calculateCOP(self.tankEnergyGenerated, self.tankEnergyConsumed)
-                if 19 in Devices:
-                    Devices[19].Update(nValue=0, sValue=str(tankCOP))
-                    Domoticz.Debug(f"Tank COP updated: {tankCOP} (Generated: {self.tankEnergyGenerated}W, Consumed: {self.tankEnergyConsumed}W)")
+                if self.isDefrosting:
+                    skipCOPUpdate = True
+                    skipReason = "during defrost"
+                elif self.defrostEndTime is not None:
+                    # Skip COP updates for 2 minutes after defrost ends (stabilization period)
+                    timeSinceDefrost = (currentTime - self.defrostEndTime).total_seconds()
+                    if timeSinceDefrost < 120:  # 2 minutes
+                        skipCOPUpdate = True
+                        skipReason = f"stabilizing after defrost ({timeSinceDefrost:.0f}s ago)"
 
-                # Overall COP (ID 20) - total energy generated / total energy consumed
-                totalGenerated = self.heatEnergyGenerated + self.coolEnergyGenerated + self.tankEnergyGenerated
-                totalConsumed = self.heatEnergyConsumed + self.coolEnergyConsumed + self.tankEnergyConsumed
-                overallCOP = calculateCOP(totalGenerated, totalConsumed)
-                if 20 in Devices:
-                    Devices[20].Update(nValue=0, sValue=str(overallCOP))
-                    Domoticz.Debug(f"Overall COP updated: {overallCOP} (Total Generated: {totalGenerated}W, Total Consumed: {totalConsumed}W)")
+                if skipCOPUpdate:
+                    Domoticz.Debug(f"COP calculation skipped: {skipReason}")
+                else:
+                    # Heat COP (ID 17) - with moving average
+                    instantHeatCOP = calculateCOP(self.heatEnergyGenerated, self.heatEnergyConsumed)
+                    avgHeatCOP, self.heatCOPHistory = updateCOPMovingAverage(self.heatCOPHistory, instantHeatCOP, self.copHistorySize)
 
-                # Performance optimization alerts
-                if overallCOP > 0 and overallCOP < 2.0:
-                    Domoticz.Log(f"PERFORMANCE WARNING: Overall COP is low ({overallCOP}). Consider checking system settings or maintenance.")
-                elif overallCOP >= 4.0:
-                    Domoticz.Debug(f"PERFORMANCE EXCELLENT: Overall COP is high ({overallCOP}). System is running efficiently.")
+                    if avgHeatCOP is not None and 17 in Devices:
+                        Devices[17].Update(nValue=0, sValue=str(avgHeatCOP))
+                        if instantHeatCOP is not None:
+                            Domoticz.Debug(f"Heat COP updated: {avgHeatCOP} (instant: {instantHeatCOP}, avg of {len(self.heatCOPHistory)} readings)")
+                        else:
+                            Domoticz.Debug(f"Heat COP updated: {avgHeatCOP} (instant invalid, using avg of {len(self.heatCOPHistory)} readings)")
+
+                    # Cool COP (ID 18) - with moving average
+                    instantCoolCOP = calculateCOP(self.coolEnergyGenerated, self.coolEnergyConsumed)
+                    avgCoolCOP, self.coolCOPHistory = updateCOPMovingAverage(self.coolCOPHistory, instantCoolCOP, self.copHistorySize)
+
+                    if avgCoolCOP is not None and 18 in Devices:
+                        Devices[18].Update(nValue=0, sValue=str(avgCoolCOP))
+                        if instantCoolCOP is not None:
+                            Domoticz.Debug(f"Cool COP updated: {avgCoolCOP} (instant: {instantCoolCOP}, avg of {len(self.coolCOPHistory)} readings)")
+                        else:
+                            Domoticz.Debug(f"Cool COP updated: {avgCoolCOP} (instant invalid, using avg of {len(self.coolCOPHistory)} readings)")
+
+                    # Tank COP (ID 19) - with moving average
+                    instantTankCOP = calculateCOP(self.tankEnergyGenerated, self.tankEnergyConsumed)
+                    avgTankCOP, self.tankCOPHistory = updateCOPMovingAverage(self.tankCOPHistory, instantTankCOP, self.copHistorySize)
+
+                    if avgTankCOP is not None and 19 in Devices:
+                        Devices[19].Update(nValue=0, sValue=str(avgTankCOP))
+                        if instantTankCOP is not None:
+                            Domoticz.Debug(f"Tank COP updated: {avgTankCOP} (instant: {instantTankCOP}, avg of {len(self.tankCOPHistory)} readings)")
+                        else:
+                            Domoticz.Debug(f"Tank COP updated: {avgTankCOP} (instant invalid, using avg of {len(self.tankCOPHistory)} readings)")
+
+                    # Overall COP (ID 20) - total energy generated / total energy consumed, with moving average
+                    totalGenerated = self.heatEnergyGenerated + self.coolEnergyGenerated + self.tankEnergyGenerated
+                    totalConsumed = self.heatEnergyConsumed + self.coolEnergyConsumed + self.tankEnergyConsumed
+                    instantOverallCOP = calculateCOP(totalGenerated, totalConsumed)
+                    avgOverallCOP, self.overallCOPHistory = updateCOPMovingAverage(self.overallCOPHistory, instantOverallCOP, self.copHistorySize)
+
+                    if avgOverallCOP is not None and 20 in Devices:
+                        Devices[20].Update(nValue=0, sValue=str(avgOverallCOP))
+                        if instantOverallCOP is not None:
+                            Domoticz.Debug(f"Overall COP updated: {avgOverallCOP} (instant: {instantOverallCOP}, avg of {len(self.overallCOPHistory)} readings)")
+                        else:
+                            Domoticz.Debug(f"Overall COP updated: {avgOverallCOP} (instant invalid, using avg of {len(self.overallCOPHistory)} readings)")
+
+                        # Performance optimization alerts (only on averaged values)
+                        if avgOverallCOP > 0 and avgOverallCOP < 2.0:
+                            Domoticz.Log(f"PERFORMANCE WARNING: Overall COP is low ({avgOverallCOP}). Consider checking system settings or maintenance.")
+                        elif avgOverallCOP >= 4.0:
+                            Domoticz.Debug(f"PERFORMANCE EXCELLENT: Overall COP is high ({avgOverallCOP}). System is running efficiently.")
 
             except Exception as e:
                 Domoticz.Log(f"Failed to calculate COP: {e}")
